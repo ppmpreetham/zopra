@@ -1,1 +1,1 @@
-mod arena;
+pub mod arena;
