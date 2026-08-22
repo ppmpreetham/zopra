@@ -1,6 +1,6 @@
-use std::{any::Any, cell::RefCell, collections::HashSet, rc::Rc};
-
 use crate::utils::arena::{Arena, NodeId, ScopeId, SignalId};
+
+use std::{any::Any, cell::RefCell, collections::HashSet, rc::Rc};
 
 pub struct ScopeData {
     pub parent: Option<ScopeId>,
@@ -26,7 +26,7 @@ pub struct ReactiveNode {
     owning_scope: ScopeId,
     computation_scope: Option<ScopeId>,
 
-    state: NodeState,
+    pub state: NodeState,
     signal_dependencies: HashSet<SignalId>,
     node_dependencies: HashSet<NodeId>,
     subscribers: HashSet<NodeId>,
@@ -41,8 +41,8 @@ pub struct ComponentOwner {
     pub scopes: RefCell<Arena<ScopeData>>,
 
     root_scope: ScopeId,
-    active_scope: RefCell<ScopeId>,
-    active_computation: RefCell<Option<NodeId>>,
+    pub active_scope: RefCell<ScopeId>,
+    pub active_computation: RefCell<Option<NodeId>>,
 
     notifier: RefCell<Option<Rc<dyn Fn()>>>,
 }
