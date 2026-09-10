@@ -1,5 +1,5 @@
 #[macro_export]
-macro_rules! create_effect {
+macro_rules! use_effect {
     ($cx:expr, [$($dep:expr),* $(,)?], $effect:expr) => {{
         let effect = std::rc::Rc::new(std::cell::RefCell::new($effect));
         let mut subs = Vec::new();

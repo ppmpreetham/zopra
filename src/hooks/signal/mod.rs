@@ -5,14 +5,14 @@ use gpui::{App, AppContext, Entity};
 /// # Example
 ///
 /// ```rust
-/// let (count, set_count) = create_signal(0);
+/// let (count, set_count) = use_state(0);
 ///
 /// set_count(1);
 ///
 /// let value = count();
 /// assert_eq!(value, 1);
 /// ```
-pub fn create_signal<T: 'static + Clone>(
+pub fn use_state<T: 'static + Clone>(
     initial: T,
     cx: &mut App,
 ) -> (impl Fn(&App) -> T + Clone, impl Fn(T, &mut App) + Clone) {
