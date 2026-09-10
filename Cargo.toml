@@ -7,7 +7,10 @@ edition = "2024"
 members = ["zopra_macros"]
 
 [dependencies]
+anyhow = "1.0.104"
 futures = "0.3.34"
 gpui = "0.2.2"
+gpui-kit = "0.6.1"
 parking_lot = "0.12.5"
+rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros" }
