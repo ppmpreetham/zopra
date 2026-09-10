@@ -14,7 +14,7 @@ struct InjectCx {
 }
 
 // TODO: add more hooks to skip
-static SKIP_FNS: &[&str] = &["create_signal"];
+static SKIP_FNS: &[&str] = &["create_signal", "create_effect"];
 
 impl VisitMut for InjectCx {
     fn visit_local_mut(&mut self, local: &mut Local) {
