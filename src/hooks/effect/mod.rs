@@ -1,3 +1,12 @@
+/// Runs an effect when the dependencies change
+///
+/// # Example
+///
+/// ```
+/// use_effect!([count], || {
+///     println!("count: {count}");
+/// });
+/// ```
 #[macro_export]
 macro_rules! use_effect {
     ($cx:expr, [$($dep:expr),* $(,)?], $effect:expr) => {{

@@ -16,6 +16,7 @@ struct InjectCx {
 // TODO: add more hooks to skip
 static SKIP_FNS: &[&str] = &["use_state", "use_effect"];
 
+/// goes through every single function call in the AST and injects `cx` into closures wherever required
 impl VisitMut for InjectCx {
     fn visit_local_mut(&mut self, local: &mut Local) {
         visit_mut::visit_local_mut(self, local);
