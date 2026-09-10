@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::ToTokens;
 use std::collections::HashSet;
 use syn::{
-    ExprCall, ExprClosure, ExprPath, Local, LocalInit, Pat, PatType,
+    ExprCall, ExprPath, Local, LocalInit, Pat,
     visit_mut::{self, VisitMut},
 };
 use syn::{ItemFn, parse_macro_input, parse_quote};
@@ -10,7 +10,6 @@ use syn::{ItemFn, parse_macro_input, parse_quote};
 #[derive(Default)]
 struct InjectCx {
     signal_idents: HashSet<syn::Ident>,
-    shadow_depth: usize,
 }
 
 // TODO: add more hooks to skip
@@ -37,24 +36,6 @@ impl VisitMut for InjectCx {
         }
     }
 
-    fn visit_expr_closure_mut(&mut self, closure: &mut ExprClosure) {
-        let shadows_cx = closure.inputs.iter().any(|input| match input {
-            Pat::Ident(p) => p.ident == "cx",
-            Pat::Type(PatType { pat, .. }) => {
-                matches!(pat.as_ref(), Pat::Ident(p) if p.ident == "cx")
-            }
-            _ => false,
-        });
-
-        if shadows_cx {
-            self.shadow_depth += 1;
-        }
-        visit_mut::visit_expr_closure_mut(self, closure);
-        if shadows_cx {
-            self.shadow_depth -= 1;
-        }
-    }
-
     fn visit_expr_call_mut(&mut self, call: &mut ExprCall) {
         visit_mut::visit_expr_call_mut(self, call);
 
@@ -62,6 +43,9 @@ impl VisitMut for InjectCx {
             && let Some(seg) = path.segments.last()
             && (SKIP_FNS.iter().any(|f| seg.ident == f) || self.signal_idents.contains(&seg.ident))
         {
+            if seg.ident == "use_state" {
+                call.args.push(syn::parse_quote!(window));
+            }
             call.args.push(syn::parse_quote!(cx));
         }
     }
@@ -80,6 +64,10 @@ impl VisitMut for InjectCx {
 pub fn component(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemFn);
     input.sig.output = parse_quote!(-> impl gpui::IntoElement);
+    input
+        .sig
+        .inputs
+        .push(parse_quote!(window: &mut gpui::Window));
     input.sig.inputs.push(parse_quote!(cx: &mut gpui::App));
 
     // injects cx into functions which need it

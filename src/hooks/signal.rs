@@ -1,4 +1,4 @@
-use gpui::{App, AppContext, Entity};
+use gpui::{App, Entity, Window};
 
 /// Creates a signal
 ///
@@ -12,11 +12,13 @@ use gpui::{App, AppContext, Entity};
 /// let value = count();
 /// assert_eq!(value, 1);
 /// ```
+#[track_caller]
 pub fn use_state<T: 'static + Clone>(
     initial: T,
+    window: &mut Window,
     cx: &mut App,
 ) -> (impl Fn(&App) -> T + Clone, impl Fn(T, &mut App) + Clone) {
-    let entity: Entity<T> = cx.new(|_cx| initial);
+    let entity: Entity<T> = window.use_state(cx, |_window, _cx| initial);
 
     let getter = {
         let entity = entity.clone();
