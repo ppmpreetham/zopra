@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::ToTokens;
 use std::collections::HashSet;
 use syn::{
-    ExprCall, ExprPath, Local, LocalInit, Pat,
+    Expr, ExprCall, ExprClosure, ExprPath, Local, LocalInit, Pat,
     visit_mut::{self, VisitMut},
 };
 use syn::{ItemFn, parse_macro_input, parse_quote};
@@ -14,6 +14,10 @@ struct InjectCx {
 
 // TODO: add more hooks to skip
 static SKIP_FNS: &[&str] = &["use_state", "use_effect"];
+
+// hooks where cx must be injected into the closure argument's own params
+static CLOSURE_CX_FNS: &[&str] = &["use_callback", "use_event"];
+static ASYNC_CX_FNS: &[&str] = &["use_async"];
 
 /// goes through every single function call in the AST and injects `cx` into closures wherever required
 impl VisitMut for InjectCx {
@@ -39,15 +43,43 @@ impl VisitMut for InjectCx {
     fn visit_expr_call_mut(&mut self, call: &mut ExprCall) {
         visit_mut::visit_expr_call_mut(self, call);
 
-        if let syn::Expr::Path(ExprPath { path, .. }) = &*call.func
-            && let Some(seg) = path.segments.last()
-            && (SKIP_FNS.iter().any(|f| seg.ident == f) || self.signal_idents.contains(&seg.ident))
-        {
-            if seg.ident == "use_state" {
-                call.args.push(syn::parse_quote!(window));
+        let Expr::Path(ExprPath { path, .. }) = &*call.func else {
+            return;
+        };
+        let Some(seg) = path.segments.last() else {
+            return;
+        };
+        let name = seg.ident.to_string();
+
+        if SKIP_FNS.iter().any(|f| *f == name) || self.signal_idents.contains(&seg.ident) {
+            if name == "use_state" {
+                call.args.push(parse_quote!(window));
             }
-            call.args.push(syn::parse_quote!(cx));
+            call.args.push(parse_quote!(cx));
+            return;
         }
+
+        if CLOSURE_CX_FNS.contains(&name.as_str())
+            && let Some(Expr::Closure(closure)) = call.args.last_mut()
+        {
+            inject_cx_param(closure, parse_quote!(cx: &mut gpui::App));
+        }
+
+        if ASYNC_CX_FNS.contains(&name.as_str())
+            && let Some(Expr::Closure(outer_closure)) = call.args.last_mut()
+        {
+            inject_cx_param(outer_closure, parse_quote!(cx: &mut gpui::AsyncApp));
+        }
+    }
+}
+
+fn inject_cx_param(closure: &mut ExprClosure, param: syn::FnArg) {
+    let already_has_cx = closure
+        .inputs
+        .iter()
+        .any(|p| matches!(p, Pat::Ident(id) if id.ident == "cx"));
+    if !already_has_cx {
+        closure.inputs.push(syn::parse_quote!(cx));
     }
 }
 
