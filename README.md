@@ -9,9 +9,9 @@ A reactive framework for GPUI
 fn profile(username: &'static str) {
     let (likes, set_likes) = use_state(0);
 
-    use_effect!([likes], move || {
+    use_effect!(move || {
         println!("{username} now has {} likes!", likes());
-    });
+    }, [likes]);
 
     view! {
         <div

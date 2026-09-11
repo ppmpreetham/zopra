@@ -3,13 +3,13 @@
 /// # Example
 ///
 /// ```
-/// use_effect!([count], || {
+/// use_effect!(|| {
 ///     println!("count: {count}");
-/// });
+/// }, [count]);
 /// ```
 #[macro_export]
 macro_rules! use_effect {
-    ([$($dep:expr),* $(,)?], $effect:expr, $cx:expr) => {{
+    ($effect:expr, [$($dep:expr),* $(,)?], $cx:expr) => {{
         let effect = std::rc::Rc::new(std::cell::RefCell::new($effect));
         $(
             let effect_clone = effect.clone();
