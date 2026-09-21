@@ -5,7 +5,6 @@ edition = "2024"
 description = "Procedural macros for Zopra"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ppmpreetham/zopra"
-readme = "README.md"
 keywords = ["ui", "gpui", "macros", "declarative"]
 categories = ["development-tools::procedural-macro", "gui"]
 
