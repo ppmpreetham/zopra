@@ -3,6 +3,8 @@ mod effect;
 mod event;
 mod signal;
 mod use_async;
+
+#[cfg(test)]
 mod tests;
 
 pub use callback::use_callback;
