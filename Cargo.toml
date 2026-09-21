@@ -6,6 +6,9 @@ edition = "2024"
 [workspace]
 members = ["zopra_macros"]
 
+[dev-dependencies]
+gpui = { version = "0.2.2", features = ["test-support"] }
+
 [dependencies]
 anyhow = "1.0.104"
 futures = "0.3.34"

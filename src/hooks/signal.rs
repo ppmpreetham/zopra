@@ -17,7 +17,10 @@ pub fn use_state<T: 'static + Clone>(
     initial: T,
     window: &mut Window,
     cx: &mut App,
-) -> (impl Fn(&App) -> T + Clone, impl Fn(T, &mut App) + Clone) {
+) -> (
+    impl Fn(&App) -> T + use<T>,
+    impl Fn(T, &mut App) + use<T>,
+) {
     let entity: Entity<T> = window.use_state(cx, |_window, _cx| initial);
 
     let getter = {
