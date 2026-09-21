@@ -3,11 +3,11 @@ name = "zopra"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "Modern Declarative Macros for GPUI"
+description = "A reactive framework for GPUI"
 repository = "https://github.com/ppmpreetham/zopra"
 readme = "README.md"
 keywords = ["ui", "gpui", "macros", "declarative"]
-categories = ["gui", "macros", "ui"]
+categories = ["gui"]
 
 [workspace]
 members = ["zopra_macros"]
@@ -22,4 +22,4 @@ gpui = "0.2.2"
 gpui-kit = "0.6.1"
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
-zopra_macros = { path = "./zopra_macros" }
+zopra_macros = { path = "./zopra_macros", version = "0.1.0" }
