@@ -2,6 +2,12 @@
 name = "zopra"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Modern Declarative Macros for GPUI"
+repository = "https://github.com/ppmpreetham/zopra"
+readme = "README.md"
+keywords = ["ui", "gpui", "macros", "declarative"]
+categories = ["gui", "macros", "ui"]
 
 [workspace]
 members = ["zopra_macros"]
