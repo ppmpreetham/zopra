@@ -6,7 +6,7 @@ description = "Procedural macros for Zopra"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/ppmpreetham/zopra"
 keywords = ["ui", "gpui", "macros", "declarative"]
-categories = ["development-tools::procedural-macro", "gui"]
+categories = ["development-tools::procedural-macro-helpers", "gui"]
 
 [lib]
 proc-macro = true
