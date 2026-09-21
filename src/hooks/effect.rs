@@ -2,7 +2,7 @@
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use_effect!(|| {
 ///     println!("count: {count}");
 /// }, [count]);

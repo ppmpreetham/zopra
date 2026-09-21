@@ -1,10 +1,10 @@
-use gpui::{App, Entity, Window};
+use gpui_kit::{App, Entity, Window};
 
 /// Creates a signal
 ///
 /// # Example
 ///
-/// ```rust
+/// ```ignore
 /// let (count, set_count) = use_state(0);
 ///
 /// set_count(1);

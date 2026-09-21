@@ -1,4 +1,4 @@
-use gpui::{App, Context, Entity, Window};
+use gpui_kit::{App, Context, Entity, Window};
 
 pub fn use_callback<E: 'static, T: 'static>(
     entity: &Entity<T>,

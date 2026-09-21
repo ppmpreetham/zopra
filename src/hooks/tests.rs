@@ -4,7 +4,7 @@
 //! they are covered by the integration tests in `tests/hooks.rs`.
 
 use std::{cell::RefCell, rc::Rc};
-use gpui::{App, AppContext, Entity, EventEmitter, TestAppContext};
+use gpui_kit::{App, AppContext, Entity, EventEmitter, TestAppContext};
 
 use super::{use_async, use_event};
 use crate::use_effect;
@@ -19,7 +19,7 @@ impl EventEmitter<Ping> for Emitter {}
 struct Ping(u32);
 
 // #region use_effect
-#[gpui::test]
+#[gpui_kit::test]
 async fn effect_runs_when_dependency_notifies(cx: &mut TestAppContext) {
     let runs = Rc::new(RefCell::new(Vec::<u32>::new()));
     let dep: Entity<Counter> = cx.new(|_| Counter(0));
@@ -49,7 +49,7 @@ async fn effect_runs_when_dependency_notifies(cx: &mut TestAppContext) {
     assert_eq!(*runs.borrow(), vec![7]);
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 async fn each_dependency_gets_its_own_effect_runner(cx: &mut TestAppContext) {
     let runs = Rc::new(RefCell::new(0u32));
     let a: Entity<Counter> = cx.new(|_| Counter(0));
@@ -69,7 +69,7 @@ async fn each_dependency_gets_its_own_effect_runner(cx: &mut TestAppContext) {
     assert_eq!(*runs.borrow(), 2);
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 async fn effect_is_safe_after_observer_is_released(cx: &mut TestAppContext) {
     let runs = Rc::new(RefCell::new(0u32));
     let dep: Entity<Counter> = cx.new(|_| Counter(0));
@@ -89,7 +89,7 @@ async fn effect_is_safe_after_observer_is_released(cx: &mut TestAppContext) {
 // #endregion
 
 //#region use_event
-#[gpui::test]
+#[gpui_kit::test]
 async fn use_event_invokes_callback_for_each_emitted_event(cx: &mut TestAppContext) {
     let got = Rc::new(RefCell::new(Vec::<u32>::new()));
     let publisher: Entity<Emitter> = cx.new(|_| Emitter);
@@ -105,7 +105,7 @@ async fn use_event_invokes_callback_for_each_emitted_event(cx: &mut TestAppConte
     assert_eq!(*got.borrow(), vec![3, 4]);
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 async fn use_event_stops_after_publisher_is_released(cx: &mut TestAppContext) {
     let got = Rc::new(RefCell::new(Vec::<u32>::new()));
     let publisher: Entity<Emitter> = cx.new(|_| Emitter);
@@ -127,7 +127,7 @@ async fn use_event_stops_after_publisher_is_released(cx: &mut TestAppContext) {
 struct AsyncThing;
 struct AsyncThingWithValue(u32);
 
-#[gpui::test]
+#[gpui_kit::test]
 async fn use_async_returns_task_with_value(cx: &mut TestAppContext) {
     let thing: Entity<AsyncThing> = cx.new(|_| AsyncThing);
     let task = thing.update(cx, |_, cx| {
@@ -136,7 +136,7 @@ async fn use_async_returns_task_with_value(cx: &mut TestAppContext) {
     assert_eq!(task.await, 42);
 }
 
-#[gpui::test]
+#[gpui_kit::test]
 async fn use_async_tasks_can_update_their_entity(cx: &mut TestAppContext) {
     let thing: Entity<AsyncThingWithValue> = cx.new(|_| AsyncThingWithValue(0));
     let task = thing.update(cx, |_, cx| {

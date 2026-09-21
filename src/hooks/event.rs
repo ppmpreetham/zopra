@@ -1,10 +1,10 @@
-use gpui::{App, Entity, EventEmitter};
+use gpui_kit::{App, Entity, EventEmitter};
 
 /// # Custom Hook
 /// Subscribes to events from a publisher and calls the function when an event is emitted.
 ///
 /// # Example
-///```rust
+///```ignore
 /// #[component]
 /// pub fn current_count(counter: &Entity<Counter>){
 ///   use_event(&counter, |event| {

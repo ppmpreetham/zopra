@@ -62,13 +62,13 @@ impl VisitMut for InjectCx {
         if CLOSURE_CX_FNS.contains(&name.as_str())
             && let Some(Expr::Closure(closure)) = call.args.last_mut()
         {
-            inject_cx_param(closure, parse_quote!(cx: &mut gpui::App));
+            inject_cx_param(closure, parse_quote!(cx: &mut gpui_kit::App));
         }
 
         if ASYNC_CX_FNS.contains(&name.as_str())
             && let Some(Expr::Closure(outer_closure)) = call.args.last_mut()
         {
-            inject_cx_param(outer_closure, parse_quote!(cx: &mut gpui::AsyncApp));
+            inject_cx_param(outer_closure, parse_quote!(cx: &mut gpui_kit::AsyncApp));
         }
     }
 }
@@ -95,12 +95,12 @@ fn inject_cx_param(closure: &mut ExprClosure, param: syn::FnArg) {
 #[proc_macro_attribute]
 pub fn component(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemFn);
-    input.sig.output = parse_quote!(-> impl gpui::IntoElement);
+    input.sig.output = parse_quote!(-> impl gpui_kit::IntoElement);
     input
         .sig
         .inputs
-        .push(parse_quote!(window: &mut gpui::Window));
-    input.sig.inputs.push(parse_quote!(cx: &mut gpui::App));
+        .push(parse_quote!(window: &mut gpui_kit::Window));
+    input.sig.inputs.push(parse_quote!(cx: &mut gpui_kit::App));
 
     // injects cx into functions which need it
     let mut rewriter = InjectCx::default();
