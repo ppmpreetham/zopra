@@ -2859,16 +2859,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a09e0bf58aede45b8e7eed6e8d5d6552381c431014d62b349b0133008737bd"
 
 [[package]]
-name = "gpui-rsx"
-version = "0.7.0"
-source = "git+https://www.github.com/ppmpreetham/gpui-rsx#672ec1c89b35e38d7e72d7ff1c0995d849d9447e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "granit-parser"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8859,15 +8849,24 @@ checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
 name = "zopra"
-version = "0.1.1"
+version = "0.1.11"
 dependencies = [
  "anyhow",
  "futures",
  "gpui-kit",
- "gpui-rsx",
  "parking_lot",
  "rust-embed",
+ "zopra-gpui-view",
  "zopra_macros",
+]
+
+[[package]]
+name = "zopra-gpui-view"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -8959,7 +8958,3 @@ dependencies = [
  "syn 3.0.3",
  "winnow 1.0.4",
 ]
-
-[[patch.unused]]
-name = "gpui-rsx"
-version = "0.7.0"

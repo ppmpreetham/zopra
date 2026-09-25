@@ -19,7 +19,7 @@ gpui-kit = { version = "0.6", features = ["test-support"] }
 anyhow = "1.0.104"
 futures = "0.3.34"
 gpui-kit = "0.6"
-gpui-rsx = { git = "https://www.github.com/ppmpreetham/gpui-rsx" }
+zopra-gpui-view = "0.1.0"
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros", version = "0.1.0" }

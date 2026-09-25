@@ -4,4 +4,4 @@ pub mod utils;
 
 pub use zopra_macros::component;
 pub use zopra_macros::signals;
-pub use gpui_rsx::rsx as view;
+pub use zopra_gpui_view::rsx as view;
