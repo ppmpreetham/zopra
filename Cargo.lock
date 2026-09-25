@@ -8872,7 +8872,7 @@ dependencies = [
 
 [[package]]
 name = "zopra_macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -8959,7 +8959,3 @@ dependencies = [
  "syn 3.0.3",
  "winnow 1.0.4",
 ]
-
-[[patch.unused]]
-name = "gpui-rsx"
-version = "0.7.0"
