@@ -15,10 +15,14 @@
 ## Install
 
 ```bash
+cargo install cargo-generate
 cargo generate ppmpreetham/create-zopra-app
 ```
 
-## Get Started
+> [!NOTE]
+> For Linux X11 based systems, you may need to install `libxkbcommon-x11-devel`.
+
+## Example Code
 
 ```rust
 #[component]
