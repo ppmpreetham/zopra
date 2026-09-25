@@ -1,6 +1,6 @@
 [package]
 name = "zopra"
-version = "0.1.11"
+version = "0.1.111"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A reactive framework for GPUI"
@@ -19,7 +19,7 @@ gpui-kit = { version = "0.6", features = ["test-support"] }
 anyhow = "1.0.104"
 futures = "0.3.34"
 gpui-kit = "0.6"
-zopra-gpui-view = "0.1.0"
+zopra-gpui-view = "0.1.1"
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros", version = "0.1.0" }
