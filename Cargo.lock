@@ -8959,3 +8959,7 @@ dependencies = [
  "syn 3.0.3",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "gpui-rsx"
+version = "0.7.0"

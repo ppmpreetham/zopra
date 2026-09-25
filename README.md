@@ -1,8 +1,24 @@
 # Zopra
 
-A reactive framework for GPUI
+<p align="center">
+  <img src="readme/Zopra.svg" width="300px" alt="Zopra Logo"/>
+</p>
 
-# Example
+<h1 align="center">
+  Zopra
+</h1>
+
+<p align="center">
+  A reactive framework for GPUI
+</p>
+
+## Install
+
+```bash
+cargo generate ppmpreetham/create-zopra-app
+```
+
+## Get Started
 
 ```rust
 #[component]
@@ -35,3 +51,7 @@ fn app() {
 }
 
 ```
+
+## License
+
+The source is [MIT licensed](LICENSE) and can be built and run for free, for both personal and commercial use.
