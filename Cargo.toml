@@ -14,6 +14,7 @@ members = ["zopra_macros"]
 
 [dev-dependencies]
 gpui-kit = { version = "0.6", features = ["test-support"] }
+gpui-rsx = {git = "https://www.github.com/ppmpreetham/gpui-rsx"}
 
 [dependencies]
 anyhow = "1.0.104"

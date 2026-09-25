@@ -2196,7 +2196,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.20",
- "windows 0.61.3",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -2859,6 +2859,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a09e0bf58aede45b8e7eed6e8d5d6552381c431014d62b349b0133008737bd"
 
 [[package]]
+name = "gpui-rsx"
+version = "0.7.0"
+source = "git+https://www.github.com/ppmpreetham/gpui-rsx#672ec1c89b35e38d7e72d7ff1c0995d849d9447e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "granit-parser"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3142,7 +3152,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.61.2",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
@@ -8854,6 +8864,7 @@ dependencies = [
  "anyhow",
  "futures",
  "gpui-kit",
+ "gpui-rsx",
  "parking_lot",
  "rust-embed",
  "zopra_macros",
@@ -8948,3 +8959,7 @@ dependencies = [
  "syn 3.0.3",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "gpui-rsx"
+version = "0.7.0"
