@@ -87,7 +87,7 @@ fn greet(name: String, count: u32) {
     div().child(format!("Hello, {name} x{count}!"))
 }
 
-use gpui_rsx::rsx;
+use zopra_gpui_view::rsx as view;
 
 #[component]
 fn greet_click(name: String) {
@@ -126,14 +126,14 @@ async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
 
 #[component]
 fn rsx_host_component() {
-    div().child(rsx! {
+    div().child(view! {
         <GreetClick name={"zopra".to_string()} />
     })
 }
 
 #[component]
 fn rsx_direct_component() {
-    rsx! {
+    view! {
         <div>
             <GreetClick name={"zopra".to_string()} />
         </div>
@@ -142,7 +142,7 @@ fn rsx_direct_component() {
 
 #[component]
 fn rsx_nested_component() {
-    rsx! {
+    view! {
         <div class="flex flex-col">
             <GreetClick name={"a".to_string()} />
             <GreetClick name={"b".to_string()} />

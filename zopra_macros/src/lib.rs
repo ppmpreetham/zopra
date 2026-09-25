@@ -369,7 +369,7 @@ fn rebuild_group(group: &Group, stream: TokenStream2, delimiter: Delimiter) -> G
 ///
 /// // direct:      greet(window, cx)
 /// // builder:     GreetProps::new("hi".to_string()).render(window, cx)
-/// // via rsx!:    rsx! { <Greet name={"hi".to_string()} /> }
+/// // via view!:    view! { <Greet name={"hi".to_string()} /> }
 /// ```
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -485,7 +485,7 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     Ok(quote! {
         #input
 
-        #[doc = concat!("rsx! tag alias: `<", stringify!(#tag_alias), " prop={..} />` resolves to the props builder.")]
+        #[doc = concat!("view! tag alias: `<", stringify!(#tag_alias), " prop={..} />` resolves to the props builder.")]
         #[allow(missing_docs, non_snake_case, non_camel_case_types)]
         #vis type #tag_alias = #props_ident;
 
