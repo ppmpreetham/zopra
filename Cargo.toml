@@ -1,6 +1,6 @@
 [package]
 name = "zopra"
-version = "0.1.1"
+version = "0.1.11"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A reactive framework for GPUI"
@@ -14,12 +14,12 @@ members = ["zopra_macros"]
 
 [dev-dependencies]
 gpui-kit = { version = "0.6", features = ["test-support"] }
-gpui-rsx = {git = "https://www.github.com/ppmpreetham/gpui-rsx"}
 
 [dependencies]
 anyhow = "1.0.104"
 futures = "0.3.34"
 gpui-kit = "0.6"
+gpui-rsx = { git = "https://www.github.com/ppmpreetham/gpui-rsx" }
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros", version = "0.1.0" }
