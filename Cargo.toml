@@ -1,6 +1,6 @@
 [package]
 name = "zopra"
-version = "0.1.111"
+version = "0.1.112"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A reactive framework for GPUI"
