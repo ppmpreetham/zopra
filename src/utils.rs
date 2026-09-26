@@ -37,7 +37,7 @@ macro_rules! cn {
                     __classes.push_str(&__c);
                 }
             )*
-            $crate::utils::tw_merge::tw_merge(&__classes)
+            $crate::utils::tw_merge::tw_merge!(&__classes)
         }
     }
 }

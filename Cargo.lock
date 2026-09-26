@@ -8872,9 +8872,7 @@ dependencies = [
 
 [[package]]
 name = "zopra-gpui-view"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0581682ec28d407a55649f6a07ab7106482535485fafd98808a11330fb57b3e"
+version = "0.1.111"
 dependencies = [
  "proc-macro2",
  "quote",
