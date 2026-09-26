@@ -7017,6 +7017,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tw_merge"
+version = "0.1.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce1e887eb679c1f4e57fa9ac9c06f0dd9a300b63642b42d147db568b3bae7428"
+dependencies = [
+ "nom 7.1.3",
+]
+
+[[package]]
 name = "typeid"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8856,6 +8865,7 @@ dependencies = [
  "gpui-kit",
  "parking_lot",
  "rust-embed",
+ "tw_merge",
  "zopra-gpui-view",
  "zopra_macros",
 ]

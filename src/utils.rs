@@ -20,6 +20,9 @@ impl<T: ClassInput> ClassInput for Option<T> {
     }
 }
 
+#[doc(hidden)]
+pub use tw_merge;
+
 #[macro_export]
 macro_rules! cn {
     ($($expr:expr),* $(,)?) => {
@@ -34,7 +37,7 @@ macro_rules! cn {
                     __classes.push_str(&__c);
                 }
             )*
-            __classes
+            $crate::utils::tw_merge::tw_merge(&__classes)
         }
     }
 }
