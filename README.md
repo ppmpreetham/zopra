@@ -22,6 +22,18 @@ cargo generate ppmpreetham/create-zopra-app
 > [!NOTE]
 > For Linux X11 based systems, you may need to install `libxkbcommon-x11-devel`.
 
+## Usage
+
+```bash
+cargo run
+```
+
+> It generates the following page on startup:
+
+<p align="center">
+  <img src="readme/start_page.png" width="100%" alt="Zopra's Start Page"/>
+</p>
+
 ## Example Code
 
 ```rust
