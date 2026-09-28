@@ -1,4 +1,4 @@
-use proc_macro::TokenStream;
+﻿use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Group, Punct, Spacing, Span, TokenStream as TokenStream2, TokenTree};
 use std::collections::HashSet;
 use syn::{
@@ -9,7 +9,7 @@ use syn::{
     Pat,
 };
 
-const SKIP_FNS: &[&str] = &["use_state", "use_effect"];
+const SKIP_FNS: &[&str] = &["use_state", "use_effect", "use_table"];
 
 // hooks where cx must be injected into the closure argument's own params
 const CLOSURE_CX_FNS: &[&str] = &["use_callback", "use_event"];
@@ -266,7 +266,11 @@ impl VisitMut for InjectCx {
             let ends_with_window_cx = call.args.len() >= 2
                 && is_bare_ident(call.args.last().unwrap(), "cx")
                 && is_bare_ident(&call.args[call.args.len() - 2], "window");
-            if name == "use_state" && !ends_with_window_cx {
+            if name == "use_table" {
+                let expr = &call.args[0];
+                call.args[0] = syn::parse_quote!(|| #expr);
+            }
+            if (name == "use_state" || name == "use_table") && !ends_with_window_cx {
                 call.args.push(parse_quote!(window));
             }
             if !call.args.last().is_some_and(|a| is_bare_ident(a, "cx")) {
