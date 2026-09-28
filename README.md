@@ -1,7 +1,10 @@
 # Zopra
 
 <p align="center">
-  <img src="readme/Zopra.svg" width="300px" alt="Zopra Logo"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="readme/Zopra_Dark.svg" />
+    <img alt="Zopra Logo" src="readme/Zopra.svg" width="300"/>
+  </picture>
 </p>
 
 <h1 align="center">
