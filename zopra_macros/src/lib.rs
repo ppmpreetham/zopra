@@ -2,11 +2,10 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Group, Punct, Spacing, Span, TokenStream as TokenStream2, TokenTree};
 use std::collections::HashSet;
 use syn::{
-    parse_macro_input, parse_quote,
+    Expr, ExprCall, ExprClosure, ExprForLoop, ExprIf, ExprMatch, ExprWhile, ItemFn, Local, Macro,
+    Pat, Stmt, parse_macro_input, parse_quote,
     visit::{self, Visit},
     visit_mut::{self, VisitMut},
-    Expr, ExprCall, ExprClosure, ExprForLoop, ExprIf, ExprMatch, ExprWhile, ItemFn, Local, Macro,
-    Pat, Stmt,
 };
 
 const SKIP_FNS: &[&str] = &["use_state", "use_effect", "use_table"];
@@ -134,7 +133,11 @@ impl InjectCx {
                 TokenTree::Group(group) => {
                     let mut inner = group.stream();
                     self.rewrite_signal_calls(&mut inner);
-                    out.push(TokenTree::Group(rebuild_group(group, inner, group.delimiter())));
+                    out.push(TokenTree::Group(rebuild_group(
+                        group,
+                        inner,
+                        group.delimiter(),
+                    )));
                     i += 1;
                 }
                 TokenTree::Ident(ident)
@@ -170,9 +173,10 @@ impl InjectCx {
                             comma.set_span(group.span());
                             inner.extend(std::iter::once(TokenTree::Punct(comma)));
                         }
-                        inner.extend(std::iter::once(TokenTree::Ident(
-                            proc_macro2::Ident::new("cx", Span::call_site()),
-                        )));
+                        inner.extend(std::iter::once(TokenTree::Ident(proc_macro2::Ident::new(
+                            "cx",
+                            Span::call_site(),
+                        ))));
                     }
 
                     out.push(TokenTree::Ident(ident.clone()));
@@ -222,8 +226,6 @@ impl VisitMut for InjectCx {
         let as_signal = Self::init_is_hook_call(local);
         self.register_pat_known(&local.pat, as_signal, alias_of_signal.then_some(true));
     }
-
-
 
     fn visit_expr_match_mut(&mut self, expr_match: &mut ExprMatch) {
         self.visit_expr_mut(&mut expr_match.expr);
@@ -315,7 +317,7 @@ impl VisitMut for InjectCx {
         }
     }
 
-        fn visit_macro_mut(&mut self, mac: &mut Macro) {
+    fn visit_macro_mut(&mut self, mac: &mut Macro) {
         if mac
             .path
             .segments
@@ -337,7 +339,7 @@ impl VisitMut for InjectCx {
 
         let mut tokens = mac.tokens.clone();
         self.rewrite_signal_calls(&mut tokens);
-        
+
         if is_hook_mac {
             let toks_vec: Vec<_> = tokens.clone().into_iter().collect();
             let ends_with_cx = toks_vec.last().is_some_and(|t| match t {
@@ -351,11 +353,11 @@ impl VisitMut for InjectCx {
                     tokens.extend(std::iter::once(proc_macro2::TokenTree::Punct(comma)));
                 }
                 tokens.extend(std::iter::once(proc_macro2::TokenTree::Ident(
-                    proc_macro2::Ident::new("cx", proc_macro2::Span::call_site())
+                    proc_macro2::Ident::new("cx", proc_macro2::Span::call_site()),
                 )));
             }
         }
-        
+
         mac.tokens = tokens;
     }
 }
@@ -444,20 +446,20 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///   the component fn with the ambient window/cx.
 fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     use quote::quote;
-    use syn::{FnArg, Pat, PatType};
     use syn::spanned::Spanned;
+    use syn::{FnArg, Pat, PatType};
 
     let prop_count = input.sig.inputs.len();
     let mut props: Vec<(syn::Ident, syn::Type, Option<Pat>)> = Vec::new();
     for arg in input.sig.inputs.iter().take(prop_count) {
         match arg {
             FnArg::Typed(PatType { pat, ty, .. }) => match &**pat {
-                Pat::Ident(pat_ident) => props.push((pat_ident.ident.clone(), (**ty).clone(), None)),
+                Pat::Ident(pat_ident) => {
+                    props.push((pat_ident.ident.clone(), (**ty).clone(), None))
+                }
                 pat_other => {
-                    let field = syn::Ident::new(
-                        &format!("__zopra_prop{}", props.len()),
-                        pat_other.span(),
-                    );
+                    let field =
+                        syn::Ident::new(&format!("__zopra_prop{}", props.len()), pat_other.span());
                     props.push((field, (**ty).clone(), Some((**pat).clone())));
                 }
             },
@@ -493,8 +495,7 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     if generic_use_list.is_empty() {
         input.sig.output = parse_quote!(-> impl gpui_kit::IntoElement + use<>);
     } else {
-        input.sig.output =
-            parse_quote!(-> impl gpui_kit::IntoElement + use<#generic_use_list>);
+        input.sig.output = parse_quote!(-> impl gpui_kit::IntoElement + use<#generic_use_list>);
     }
     input
         .sig
@@ -567,14 +568,11 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     let mut prop_args = TokenStream2::new();
     let mut prop_extracts = TokenStream2::new();
     let mut prop_defaults = TokenStream2::new();
-    for ((prop, _, _), (setter_ty, (store_ty, _call_expr))) in props
-        .iter()
-        .zip(
-            prop_setter_tys.iter().zip(
-                prop_store_tys.iter().zip(prop_call_exprs.iter()),
-            ),
-        )
-    {
+    for ((prop, _, _), (setter_ty, (store_ty, _call_expr))) in props.iter().zip(
+        prop_setter_tys
+            .iter()
+            .zip(prop_store_tys.iter().zip(prop_call_exprs.iter())),
+    ) {
         prop_fields.extend(quote! { #prop: ::std::option::Option<#store_ty>, });
         setters.extend(quote! {
             #vis fn #prop(mut self, #prop: #setter_ty) -> Self {

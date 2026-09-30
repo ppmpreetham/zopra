@@ -1,7 +1,9 @@
 //! Integration tests for window-dependent hooks (`use_state`,
 //! `use_callback`)
 
-use gpui_kit::{App, AppContext, Context, Entity, IntoElement, Render, TestAppContext, Window, div};
+use gpui_kit::{
+    App, AppContext, Context, Entity, IntoElement, Render, TestAppContext, Window, div,
+};
 use zopra::hooks::{use_callback, use_state};
 
 struct SignalView {
@@ -11,7 +13,10 @@ struct SignalView {
 
 impl SignalView {
     fn new() -> Self {
-        Self { get: None, set: None }
+        Self {
+            get: None,
+            set: None,
+        }
     }
 }
 
@@ -33,7 +38,12 @@ struct TwoSignalsView {
 
 impl TwoSignalsView {
     fn new() -> Self {
-        Self { a_get: None, a_set: None, b_get: None, b_set: None }
+        Self {
+            a_get: None,
+            a_set: None,
+            b_get: None,
+            b_set: None,
+        }
     }
 }
 
@@ -90,10 +100,12 @@ async fn two_use_state_signals_are_independent(cx: &mut TestAppContext) {
     let (view, cx) = cx.add_window_view(|_, _| TwoSignalsView::new());
     let read_b = |cx: &App| (view.read(cx).b_get.as_ref().unwrap())(cx);
 
-    cx.cx.update(|cx| view.update(cx, |view, cx| (view.a_set.as_ref().unwrap())(1, cx)));
+    cx.cx
+        .update(|cx| view.update(cx, |view, cx| (view.a_set.as_ref().unwrap())(1, cx)));
     assert_eq!(cx.cx.read(read_b), 20);
 
-    cx.cx.update(|cx| view.update(cx, |view, cx| (view.b_set.as_ref().unwrap())(2, cx)));
+    cx.cx
+        .update(|cx| view.update(cx, |view, cx| (view.b_set.as_ref().unwrap())(2, cx)));
     assert_eq!(cx.cx.read(read_b), 2);
     let read_a = |cx: &App| (view.read(cx).a_get.as_ref().unwrap())(cx);
     assert_eq!(cx.cx.read(read_a), 1);
@@ -102,9 +114,12 @@ async fn two_use_state_signals_are_independent(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 async fn use_callback_updates_the_bound_entity(cx: &mut TestAppContext) {
     let holder: Entity<Holder> = cx.new(|_| Holder(0));
-    let bump = use_callback(&holder, |holder: &mut Holder, amount: &u32, _window, _cx| {
-        holder.0 += *amount;
-    });
+    let bump = use_callback(
+        &holder,
+        |holder: &mut Holder, amount: &u32, _window, _cx| {
+            holder.0 += *amount;
+        },
+    );
 
     let visual = cx.add_empty_window();
     visual.update(|window, cx| bump(&3, window, cx));
@@ -116,9 +131,12 @@ async fn use_callback_updates_the_bound_entity(cx: &mut TestAppContext) {
 #[gpui_kit::test]
 async fn use_callback_is_a_noop_after_the_entity_is_released(cx: &mut TestAppContext) {
     let holder: Entity<Holder> = cx.new(|_| Holder(0));
-    let bump = use_callback(&holder, |holder: &mut Holder, _amount: &u32, _window, _cx| {
-        holder.0 += 1;
-    });
+    let bump = use_callback(
+        &holder,
+        |holder: &mut Holder, _amount: &u32, _window, _cx| {
+            holder.0 += 1;
+        },
+    );
     drop(holder);
     cx.run_until_parked();
 

@@ -1,5 +1,5 @@
-use gpui_kit::{App, Entity, Window, AppContext};
-use gpui_kit::component::table::{TableState, TableDelegate};
+use gpui_kit::component::table::{TableDelegate, TableState};
+use gpui_kit::{App, AppContext, Entity, Window};
 
 #[track_caller]
 pub fn use_table<D: TableDelegate + 'static, F: FnOnce() -> D>(
@@ -11,7 +11,11 @@ pub fn use_table<D: TableDelegate + 'static, F: FnOnce() -> D>(
 }
 
 #[track_caller]
-pub fn use_table_with<D: TableDelegate + 'static, F: FnOnce() -> D, B: FnOnce(TableState<D>) -> TableState<D>>(
+pub fn use_table_with<
+    D: TableDelegate + 'static,
+    F: FnOnce() -> D,
+    B: FnOnce(TableState<D>) -> TableState<D>,
+>(
     init_delegate: F,
     build_state: B,
     window: &mut Window,

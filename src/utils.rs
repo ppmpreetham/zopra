@@ -4,7 +4,11 @@ pub trait ClassInput {
 
 impl ClassInput for &str {
     fn into_class_string(self) -> Option<String> {
-        if self.is_empty() { None } else { Some(self.to_string()) }
+        if self.is_empty() {
+            None
+        } else {
+            Some(self.to_string())
+        }
     }
 }
 

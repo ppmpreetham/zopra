@@ -5,9 +5,9 @@ use gpui_kit::*;
 #[cfg(feature = "wry")]
 use gpui_wry;
 #[cfg(feature = "wry")]
-use zopra_macros::component;
-#[cfg(feature = "wry")]
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "wry")]
+use zopra_macros::component;
 
 #[cfg(feature = "wry")]
 #[derive(Clone)]
@@ -25,21 +25,29 @@ impl Default for WebViewController {
 #[cfg(feature = "wry")]
 impl WebViewController {
     pub fn new() -> Self {
-        Self { webview: Arc::new(Mutex::new(None)) }
+        Self {
+            webview: Arc::new(Mutex::new(None)),
+        }
     }
 
     pub fn load_url(&self, url: &str, cx: &mut App) {
-        println!("Locking webview controller..."); if let Ok(guard) = self.webview.lock() {
-            println!("Guard has some webview? {}", guard.is_some()); if let Some(wv) = &*guard {
-                println!("Found webview in Mutex!"); wv.update(cx, |view, _| {
-                    println!("LOADING URL: {}", url); view.load_url(url);
+        println!("Locking webview controller...");
+        if let Ok(guard) = self.webview.lock() {
+            println!("Guard has some webview? {}", guard.is_some());
+            if let Some(wv) = &*guard {
+                println!("Found webview in Mutex!");
+                wv.update(cx, |view, _| {
+                    println!("LOADING URL: {}", url);
+                    view.load_url(url);
                 });
             }
         }
     }
 
     pub fn back(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock() && let Some(wv) = &*guard {
+        if let Ok(guard) = self.webview.lock()
+            && let Some(wv) = &*guard
+        {
             wv.update(cx, |view, _| {
                 _ = view.back();
             });
@@ -47,7 +55,9 @@ impl WebViewController {
     }
 
     pub fn forward(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock() && let Some(wv) = &*guard {
+        if let Ok(guard) = self.webview.lock()
+            && let Some(wv) = &*guard
+        {
             wv.update(cx, |view, _| {
                 _ = view.raw().evaluate_script("history.forward();");
             });
@@ -55,18 +65,20 @@ impl WebViewController {
     }
 
     pub fn reload(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock() && let Some(wv) = &*guard {
+        if let Ok(guard) = self.webview.lock()
+            && let Some(wv) = &*guard
+        {
             wv.update(cx, |view, _| {
                 _ = view.raw().evaluate_script("location.reload();");
             });
         }
-
     }
 }
 
 #[cfg(feature = "wry")]
 pub fn use_webview(window: &mut gpui_kit::Window, cx: &mut gpui_kit::App) -> WebViewController {
-    let (ctrl, _) = crate::hooks::use_state(WebViewController::new(), window, cx); ctrl(cx)
+    let (ctrl, _) = crate::hooks::use_state(WebViewController::new(), window, cx);
+    ctrl(cx)
 }
 
 #[cfg(feature = "wry")]
@@ -79,11 +91,13 @@ pub fn WebView(
 ) {
     use crate::hooks::use_state;
 
-    let (get_wv, set_wv) = use_state(None::<Entity<gpui_wry::WebView>>, window, cx); println!("WebView rendering... wv exists? {}", get_wv(cx).is_some());
+    let (get_wv, set_wv) = use_state(None::<Entity<gpui_wry::WebView>>, window, cx);
+    println!("WebView rendering... wv exists? {}", get_wv(cx).is_some());
 
     if get_wv(cx).is_none() {
         let wv = cx.new(|cx| {
-            let mut builder = lb_wry::WebViewBuilder::new(); builder = builder.with_url(&url);
+            let mut builder = lb_wry::WebViewBuilder::new();
+            builder = builder.with_url(&url);
 
             if devtools.unwrap_or(cfg!(debug_assertions)) {
                 #[cfg(debug_assertions)]
@@ -103,8 +117,8 @@ pub fn WebView(
                 target_os = "android"
             )))]
             let webview = {
-                use gtk::prelude::*;
                 use gpui_wry::lb_wry::WebViewBuilderExtUnix;
+                use gtk::prelude::*;
                 let fixed = gtk::Fixed::builder().build();
                 fixed.show_all();
                 builder.build_gtk(&fixed).unwrap()
@@ -127,7 +141,9 @@ pub fn WebView(
 
         wv.update(cx, |v, _| v.load_url(&url));
 
-        if let Some(ctrl) = &controller && let Ok(mut guard) = ctrl.webview.lock() {
+        if let Some(ctrl) = &controller
+            && let Ok(mut guard) = ctrl.webview.lock()
+        {
             *guard = Some(wv.clone());
         }
 

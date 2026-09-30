@@ -2,8 +2,8 @@ use std::ops::Range;
 
 use gpui_kit::component::menu::PopupMenu;
 use gpui_kit::component::table::{Column, ColumnGroup, ColumnSort, TableDelegate, TableState};
-use gpui_kit::{AnyElement, App, Context, Div, IntoElement, Stateful, Window, div};
 use gpui_kit::prelude::*;
+use gpui_kit::{AnyElement, App, Context, Div, IntoElement, Stateful, Window, div};
 
 pub struct DeclarativeTableDelegate<T>
 where
@@ -14,13 +14,18 @@ where
     pub group_headers: Option<Vec<Vec<ColumnGroup>>>,
 
     #[allow(clippy::type_complexity)]
-    pub render_row: Option<Box<dyn Fn(usize, &T, &mut Window, &mut Context<TableState<Self>>) -> Stateful<Div>>>,
+    pub render_row: Option<
+        Box<dyn Fn(usize, &T, &mut Window, &mut Context<TableState<Self>>) -> Stateful<Div>>,
+    >,
     #[allow(clippy::type_complexity)]
-    pub render_cell: Box<dyn Fn(&T, &str, &mut Window, &mut Context<TableState<Self>>) -> AnyElement>,
+    pub render_cell:
+        Box<dyn Fn(&T, &str, &mut Window, &mut Context<TableState<Self>>) -> AnyElement>,
     #[allow(clippy::type_complexity)]
     pub on_sort: Option<Box<dyn Fn(&str, ColumnSort)>>,
     #[allow(clippy::type_complexity)]
-    pub on_context_menu: Option<Box<dyn Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu>>,
+    pub on_context_menu: Option<
+        Box<dyn Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu>,
+    >,
     #[allow(clippy::type_complexity)]
     pub on_lazy_load: Option<Box<dyn Fn()>>,
 
@@ -36,7 +41,8 @@ impl<T: Clone + 'static> DeclarativeTableDelegate<T> {
     pub fn new(
         data: Vec<T>,
         columns: Vec<Column>,
-        render_cell: impl Fn(&T, &str, &mut Window, &mut Context<TableState<Self>>) -> AnyElement + 'static,
+        render_cell: impl Fn(&T, &str, &mut Window, &mut Context<TableState<Self>>) -> AnyElement
+        + 'static,
     ) -> Self {
         Self {
             data,
@@ -57,7 +63,8 @@ impl<T: Clone + 'static> DeclarativeTableDelegate<T> {
     #[must_use]
     pub fn render_row(
         mut self,
-        handler: impl Fn(usize, &T, &mut Window, &mut Context<TableState<Self>>) -> Stateful<Div> + 'static,
+        handler: impl Fn(usize, &T, &mut Window, &mut Context<TableState<Self>>) -> Stateful<Div>
+        + 'static,
     ) -> Self {
         self.render_row = Some(Box::new(handler));
         self
@@ -72,7 +79,11 @@ impl<T: Clone + 'static> DeclarativeTableDelegate<T> {
 
     /// Chains a context menu callback
     #[must_use]
-    pub fn on_context_menu(mut self, handler: impl Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu + 'static) -> Self {
+    pub fn on_context_menu(
+        mut self,
+        handler: impl Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu
+        + 'static,
+    ) -> Self {
         self.on_context_menu = Some(Box::new(handler));
         self
     }
@@ -102,7 +113,10 @@ impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
     }
 
     fn column(&self, col_ix: usize, _cx: &App) -> Column {
-        self.columns.get(col_ix).cloned().unwrap_or_else(|| Column::new("unknown", "Unknown"))
+        self.columns
+            .get(col_ix)
+            .cloned()
+            .unwrap_or_else(|| Column::new("unknown", "Unknown"))
     }
 
     fn group_headers(&self, _cx: &App) -> Option<Vec<Vec<ColumnGroup>>> {
@@ -140,9 +154,10 @@ impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
         cx: &mut Context<TableState<Self>>,
     ) -> Stateful<Div> {
         if let Some(handler) = &self.render_row
-            && let Some(item) = self.data.get(row_ix) {
-                return handler(row_ix, item, window, cx);
-            }
+            && let Some(item) = self.data.get(row_ix)
+        {
+            return handler(row_ix, item, window, cx);
+        }
         div().id(row_ix)
     }
 
@@ -153,8 +168,12 @@ impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
         window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        let col_key = self.columns.get(col_ix).map(|c| c.key.as_ref()).unwrap_or("");
-        
+        let col_key = self
+            .columns
+            .get(col_ix)
+            .map(|c| c.key.as_ref())
+            .unwrap_or("");
+
         if let Some(item) = self.data.get(row_ix) {
             (self.render_cell)(item, col_key, window, cx)
         } else {
@@ -206,4 +225,3 @@ impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
         self.visible_cols = visible_range;
     }
 }
-

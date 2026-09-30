@@ -1,9 +1,9 @@
-﻿mod callback;
+mod callback;
 mod effect;
 mod event;
 mod signal;
-mod use_async;
 mod table;
+mod use_async;
 
 #[cfg(test)]
 mod tests;
@@ -11,10 +11,9 @@ mod tests;
 pub use callback::use_callback;
 pub use event::use_event;
 pub use signal::use_state;
-pub use use_async::use_async;
 pub use table::use_table;
 pub use table::use_table_with;
+pub use use_async::use_async;
 
 #[cfg(feature = "wry")]
 pub use crate::components::webview::use_webview;
-

@@ -19,7 +19,6 @@ fn match_guard_component() {
     div().child(label)
 }
 
-
 #[component]
 fn shadowed_signal_component() {
     let (count, _set_count) = use_state(0);
@@ -55,14 +54,12 @@ fn collision_component() {
     div()
 }
 
-
 #[component]
 fn qualified_hook_component() {
     let (count, set_count) = zopra::hooks::use_state(7);
     set_count(count() + 1);
     div().child(count().to_string())
 }
-
 
 #[component]
 fn macro_signal_component() {
@@ -80,7 +77,6 @@ fn macro_signal_component() {
 
     div().child(label)
 }
-
 
 #[component]
 fn greet(name: String, count: u32) {
@@ -111,7 +107,10 @@ fn greet_click(name: String) {
 async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
     let window = cx.add_empty_window();
     window.update(|window, cx| {
-        let el = GreetProps::new().name("builder".into()).count(3).render(window, cx);
+        let el = GreetProps::new()
+            .name("builder".into())
+            .count(3)
+            .render(window, cx);
         let _: AnyElement = el.into_any_element();
     });
 
@@ -120,7 +119,10 @@ async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _ = GreetProps::new().count(1).render(window, cx);
         }));
-        assert!(result.is_err(), "missing prop `name` must panic immediately");
+        assert!(
+            result.is_err(),
+            "missing prop `name` must panic immediately"
+        );
     });
 }
 

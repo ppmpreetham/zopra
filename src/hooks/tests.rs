@@ -3,8 +3,8 @@
 //! NOTE: if you want to look at window dependent hooks (`use_state`, `use_callback`),
 //! they are covered by the integration tests in `tests/hooks.rs`.
 
-use std::{cell::RefCell, rc::Rc};
 use gpui_kit::{App, AppContext, Entity, EventEmitter, TestAppContext};
+use std::{cell::RefCell, rc::Rc};
 
 use super::{use_async, use_event};
 use crate::use_effect;
@@ -95,7 +95,11 @@ async fn use_event_invokes_callback_for_each_emitted_event(cx: &mut TestAppConte
     let publisher: Entity<Emitter> = cx.new(|_| Emitter);
     cx.update(|cx| {
         let got = Rc::clone(&got);
-        use_event(&publisher, move |event, _cx| got.borrow_mut().push(event.0), cx);
+        use_event(
+            &publisher,
+            move |event, _cx| got.borrow_mut().push(event.0),
+            cx,
+        );
     });
 
     assert_eq!(*got.borrow(), Vec::<u32>::new());
@@ -111,7 +115,11 @@ async fn use_event_stops_after_publisher_is_released(cx: &mut TestAppContext) {
     let publisher: Entity<Emitter> = cx.new(|_| Emitter);
     cx.update(|cx| {
         let got = Rc::clone(&got);
-        use_event(&publisher, move |event, _cx| got.borrow_mut().push(event.0), cx);
+        use_event(
+            &publisher,
+            move |event, _cx| got.borrow_mut().push(event.0),
+            cx,
+        );
     });
 
     cx.update(|cx| publisher.update(cx, |_, cx| cx.emit(Ping(1))));
@@ -130,9 +138,7 @@ struct AsyncThingWithValue(u32);
 #[gpui_kit::test]
 async fn use_async_returns_task_with_value(cx: &mut TestAppContext) {
     let thing: Entity<AsyncThing> = cx.new(|_| AsyncThing);
-    let task = thing.update(cx, |_, cx| {
-        use_async(async move |_weak, _cx| 40u32 + 2, cx)
-    });
+    let task = thing.update(cx, |_, cx| use_async(async move |_weak, _cx| 40u32 + 2, cx));
     assert_eq!(task.await, 42);
 }
 
