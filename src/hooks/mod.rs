@@ -14,3 +14,7 @@ pub use signal::use_state;
 pub use use_async::use_async;
 pub use table::use_table;
 pub use table::use_table_with;
+
+#[cfg(feature = "wry")]
+pub use crate::components::webview::use_webview;
+

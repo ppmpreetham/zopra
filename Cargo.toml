@@ -13,14 +13,22 @@ categories = ["gui"]
 members = ["zopra_macros"]
 
 [dev-dependencies]
-gpui-kit = { version = "0.6", features = ["test-support"] }
+gpui-kit = { version = "0.7", features = ["test-support"] }
 
 [dependencies]
 anyhow = "1.0.104"
 futures = "0.3.34"
-gpui-kit = "0.6"
-zopra-gpui-view = "0.1.113"
+gpui-kit = "0.7"
+zopra-gpui-view = "0.1.114"
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros", version = "0.1.0" }
 tw_merge = "0.1.22"
+
+# feature: wry webview
+gpui-wry = { version = "0.7.0", optional = true }
+lb-wry = { version = "0.53.3", optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+
+[features]
+wry = [ "dep:gpui-wry", "dep:lb-wry", "dep:raw-window-handle" ]
