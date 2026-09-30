@@ -1,4 +1,4 @@
-﻿use proc_macro::TokenStream;
+use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Group, Punct, Spacing, Span, TokenStream as TokenStream2, TokenTree};
 use std::collections::HashSet;
 use syn::{
@@ -6,7 +6,7 @@ use syn::{
     visit::{self, Visit},
     visit_mut::{self, VisitMut},
     Expr, ExprCall, ExprClosure, ExprForLoop, ExprIf, ExprMatch, ExprWhile, ItemFn, Local, Macro,
-    Pat,
+    Pat, Stmt,
 };
 
 const SKIP_FNS: &[&str] = &["use_state", "use_effect", "use_table"];
@@ -18,6 +18,18 @@ const ASYNC_CX_FNS: &[&str] = &["use_async"];
 /// true if the expression is exactly the identifier `name`
 fn is_bare_ident(arg: &Expr, name: &str) -> bool {
     matches!(arg, Expr::Path(p) if p.path.segments.last().is_some_and(|s| s.ident == name))
+}
+
+fn path_last_ident(expr: &Expr) -> String {
+    match expr {
+        Expr::Path(p) => p
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
 }
 
 /// true if the call path refers to a zopra hook: either unqualified
@@ -85,12 +97,17 @@ impl InjectCx {
     }
 
     fn register_pat(&mut self, pat: &Pat, as_signal: bool) {
+        self.register_pat_known(pat, as_signal, None);
+    }
+
+    fn register_pat_known(&mut self, pat: &Pat, as_signal: bool, known_signal: Option<bool>) {
         let names = collect_idents_from_pat(pat)
             .into_iter()
             .map(|ident| ident.to_string())
             .collect::<Vec<_>>();
         if let Some(scope) = self.scopes.last_mut() {
             for name in names {
+                let as_signal = known_signal.unwrap_or(as_signal);
                 if as_signal {
                     scope.signals.insert(name);
                 } else {
@@ -192,11 +209,21 @@ impl VisitMut for InjectCx {
         self.pop_scope();
     }
 
+    fn visit_expr_assign_mut(&mut self, expr_assign: &mut syn::ExprAssign) {
+        visit_mut::visit_expr_assign_mut(self, expr_assign);
+    }
+
     fn visit_local_mut(&mut self, local: &mut Local) {
+        let alias_of_signal = matches!(
+            local.init.as_ref().map(|i| &*i.expr),
+            Some(expr) if self.is_signal(&path_last_ident(expr))
+        );
         visit_mut::visit_local_mut(self, local);
         let as_signal = Self::init_is_hook_call(local);
-        self.register_pat(&local.pat, as_signal);
+        self.register_pat_known(&local.pat, as_signal, alias_of_signal.then_some(true));
     }
+
+
 
     fn visit_expr_match_mut(&mut self, expr_match: &mut ExprMatch) {
         self.visit_expr_mut(&mut expr_match.expr);
@@ -288,7 +315,7 @@ impl VisitMut for InjectCx {
         }
     }
 
-    fn visit_macro_mut(&mut self, mac: &mut Macro) {
+        fn visit_macro_mut(&mut self, mac: &mut Macro) {
         if mac
             .path
             .segments
@@ -306,8 +333,29 @@ impl VisitMut for InjectCx {
             return;
         }
 
+        let is_hook_mac = is_hook_path(&mac.path, &["use_effect", "use_table"]);
+
         let mut tokens = mac.tokens.clone();
         self.rewrite_signal_calls(&mut tokens);
+        
+        if is_hook_mac {
+            let toks_vec: Vec<_> = tokens.clone().into_iter().collect();
+            let ends_with_cx = toks_vec.last().is_some_and(|t| match t {
+                proc_macro2::TokenTree::Ident(ident) => ident == "cx",
+                _ => false,
+            });
+            if !ends_with_cx {
+                if !toks_vec.is_empty() {
+                    let mut comma = proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone);
+                    comma.set_span(mac.bang_token.span);
+                    tokens.extend(std::iter::once(proc_macro2::TokenTree::Punct(comma)));
+                }
+                tokens.extend(std::iter::once(proc_macro2::TokenTree::Ident(
+                    proc_macro2::Ident::new("cx", proc_macro2::Span::call_site())
+                )));
+            }
+        }
+        
         mac.tokens = tokens;
     }
 }
@@ -397,18 +445,20 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
 fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     use quote::quote;
     use syn::{FnArg, Pat, PatType};
+    use syn::spanned::Spanned;
 
     let prop_count = input.sig.inputs.len();
-    let mut props: Vec<(syn::Ident, syn::Type)> = Vec::new();
+    let mut props: Vec<(syn::Ident, syn::Type, Option<Pat>)> = Vec::new();
     for arg in input.sig.inputs.iter().take(prop_count) {
         match arg {
             FnArg::Typed(PatType { pat, ty, .. }) => match &**pat {
-                Pat::Ident(pat_ident) => props.push((pat_ident.ident.clone(), (**ty).clone())),
-                _ => {
-                    return Err(syn::Error::new_spanned(
-                        pat,
-                        "component props must be plain identifiers: `count: u32`, not destructuring patterns like `(a, b): (u32, u32)`",
-                    ));
+                Pat::Ident(pat_ident) => props.push((pat_ident.ident.clone(), (**ty).clone(), None)),
+                pat_other => {
+                    let field = syn::Ident::new(
+                        &format!("__zopra_prop{}", props.len()),
+                        pat_other.span(),
+                    );
+                    props.push((field, (**ty).clone(), Some((**pat).clone())));
                 }
             },
             FnArg::Receiver(receiver) => {
@@ -420,7 +470,32 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
         }
     }
 
-    input.sig.output = parse_quote!(-> impl gpui_kit::IntoElement + use<>);
+    let generic_use_list: TokenStream2 = input
+        .sig
+        .generics
+        .params
+        .iter()
+        .map(|param| match param {
+            syn::GenericParam::Type(tp) => {
+                let ident = &tp.ident;
+                quote! { #ident, }
+            }
+            syn::GenericParam::Lifetime(lt) => {
+                let ident = &lt.lifetime.ident;
+                quote! { #ident, }
+            }
+            syn::GenericParam::Const(cp) => {
+                let ident = &cp.ident;
+                quote! { #ident, }
+            }
+        })
+        .collect();
+    if generic_use_list.is_empty() {
+        input.sig.output = parse_quote!(-> impl gpui_kit::IntoElement + use<>);
+    } else {
+        input.sig.output =
+            parse_quote!(-> impl gpui_kit::IntoElement + use<#generic_use_list>);
+    }
     input
         .sig
         .inputs
@@ -431,6 +506,47 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     rewriter.push_scope();
     rewriter.visit_block_mut(&mut input.block);
     rewriter.pop_scope();
+
+    let view_tail_mac = match input.block.stmts.last_mut() {
+        Some(Stmt::Expr(Expr::Macro(expr_mac), None)) => Some(&mut expr_mac.mac),
+        Some(Stmt::Macro(stmt_mac)) => Some(&mut stmt_mac.mac),
+        _ => None,
+    };
+    if let Some(mac) = view_tail_mac {
+        if mac.path.is_ident("view") {
+            let mut toks = mac.tokens.clone().into_iter();
+            let starts_fragment = matches!(
+                (toks.next(), toks.next()),
+                (Some(TokenTree::Punct(a)), Some(TokenTree::Punct(b)))
+                    if a.as_char() == '<' && b.as_char() == '>'
+            );
+            if starts_fragment {
+                let inner = mac.tokens.clone();
+                mac.tokens = quote::quote! { <div> #inner </div> };
+            }
+        }
+    }
+
+    // is untouched.
+    let mut prop_setter_tys: Vec<syn::Type> = Vec::new();
+    let mut prop_store_tys: Vec<syn::Type> = Vec::new();
+    let mut prop_call_exprs: Vec<TokenStream2> = Vec::new();
+    for (prop, ty, _) in &props {
+        let _ = prop;
+        if let syn::Type::Reference(type_ref) = ty {
+            if type_ref.mutability.is_none()
+                && matches!(&*type_ref.elem, syn::Type::Path(tp) if tp.path.is_ident("str"))
+            {
+                prop_setter_tys.push(parse_quote!(String));
+                prop_store_tys.push(parse_quote!(String));
+                prop_call_exprs.push(parse_quote!(#prop.as_str()));
+                continue;
+            }
+        }
+        prop_setter_tys.push((*ty).clone());
+        prop_store_tys.push((*ty).clone());
+        prop_call_exprs.push(parse_quote!(#prop));
+    }
 
     let vis = &input.vis;
     let name = &input.sig.ident;
@@ -451,10 +567,17 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
     let mut prop_args = TokenStream2::new();
     let mut prop_extracts = TokenStream2::new();
     let mut prop_defaults = TokenStream2::new();
-    for (prop, ty) in &props {
-        prop_fields.extend(quote! { #prop: ::std::option::Option<#ty>, });
+    for ((prop, _, _), (setter_ty, (store_ty, _call_expr))) in props
+        .iter()
+        .zip(
+            prop_setter_tys.iter().zip(
+                prop_store_tys.iter().zip(prop_call_exprs.iter()),
+            ),
+        )
+    {
+        prop_fields.extend(quote! { #prop: ::std::option::Option<#store_ty>, });
         setters.extend(quote! {
-            #vis fn #prop(mut self, #prop: #ty) -> Self {
+            #vis fn #prop(mut self, #prop: #setter_ty) -> Self {
                 self.#prop = ::std::option::Option::Some(#prop);
                 self
             }
@@ -464,15 +587,33 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
         prop_defaults.extend(quote! { #prop: ::std::option::Option::None, });
     }
     let mut prop_unwraps = TokenStream2::new();
-    for (prop, _) in &props {
+    for ((prop, _, pat), call_expr) in props.iter().zip(prop_call_exprs.iter()) {
         let err = format!(
             "missing required prop `{prop}` for component `{name}` (rsx tag `<{} ...>`)",
             name
         );
-        prop_unwraps.extend(quote! {
-            let #prop = #prop.expect(#err);
-        });
+        match pat {
+            Some(pat) => {
+                prop_unwraps.extend(quote! {
+                    let #prop = #prop.expect(#err);
+                    let #prop = #call_expr;
+                    let #pat = #prop.clone();
+                });
+            }
+            None => {
+                prop_unwraps.extend(quote! {
+                    let #prop = #prop.expect(#err);
+                    let #prop = #call_expr;
+                });
+            }
+        }
     }
+
+    let props_doc = props
+        .iter()
+        .map(|(prop, _, _)| prop.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
 
     let tag_alias = {
         let mut tag_str = String::new();
@@ -486,21 +627,24 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
         syn::Ident::new(&tag_str, name.span())
     };
 
+    let (impl_generics, ty_generics, where_clause) = input.sig.generics.split_for_impl();
+
     Ok(quote! {
+        #[allow(non_snake_case, unused_variables)]
         #input
 
         #[doc = concat!("view! tag alias: `<", stringify!(#tag_alias), " prop={..} />` resolves to the props builder.")]
         #[allow(missing_docs, non_snake_case, non_camel_case_types)]
-        #vis type #tag_alias = #props_ident;
+        #vis type #tag_alias #ty_generics = #props_ident #ty_generics;
 
         #[doc = "Props builder for the "]
-        #[doc = concat!(stringify!(#name), " component (immediate-call model — no RenderOnce).")]
+        #[doc = concat!(stringify!(#name), " component (immediate-call model � no RenderOnce). Props: ", #props_doc)]
         #[allow(missing_docs, non_snake_case, non_camel_case_types)]
-        #vis struct #props_ident {
+        #vis struct #props_ident #ty_generics #where_clause {
             #prop_fields
         }
 
-        impl #props_ident {
+        impl #impl_generics #props_ident #ty_generics #where_clause {
             #vis fn new() -> Self {
                 Self { #prop_defaults }
             }
@@ -512,9 +656,11 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
                 self,
                 window: &mut gpui_kit::Window,
                 cx: &mut gpui_kit::App,
-            ) -> impl gpui_kit::IntoElement {
+            ) -> gpui_kit::AnyElement {
                 let site = core::panic::Location::caller();
-                self.render_at(gpui_kit::ElementId::CodeLocation(*site), window, cx)
+                gpui_kit::IntoElement::into_any_element(
+                    self.render_at(gpui_kit::ElementId::CodeLocation(*site), window, cx),
+                )
             }
 
             #vis fn render_at(
@@ -522,12 +668,13 @@ fn generate_component(mut input: ItemFn) -> syn::Result<TokenStream2> {
                 site: gpui_kit::ElementId,
                 window: &mut gpui_kit::Window,
                 cx: &mut gpui_kit::App,
-            ) -> impl gpui_kit::IntoElement {
+            ) -> gpui_kit::AnyElement {
                 let #props_ident { #prop_extracts } = self;
                 #prop_unwraps
-                window.with_id(site, |window| {
+                let element = window.with_id(site, |window| {
                     #name(#prop_extracts window, cx)
-                })
+                });
+                gpui_kit::IntoElement::into_any_element(element)
             }
         }
     })
