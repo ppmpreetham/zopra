@@ -139,11 +139,10 @@ impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
         window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> Stateful<Div> {
-        if let Some(handler) = &self.render_row {
-            if let Some(item) = self.data.get(row_ix) {
+        if let Some(handler) = &self.render_row
+            && let Some(item) = self.data.get(row_ix) {
                 return handler(row_ix, item, window, cx);
             }
-        }
         div().id(row_ix)
     }
 
