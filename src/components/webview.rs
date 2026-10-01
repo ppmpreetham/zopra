@@ -31,13 +31,13 @@ impl WebViewController {
     }
 
     pub fn load_url(&self, url: &str, cx: &mut App) {
-        println!("Locking webview controller...");
+
         if let Ok(guard) = self.webview.lock() {
-            println!("Guard has some webview? {}", guard.is_some());
+
             if let Some(wv) = &*guard {
-                println!("Found webview in Mutex!");
+
                 wv.update(cx, |view, _| {
-                    println!("LOADING URL: {}", url);
+
                     view.load_url(url);
                 });
             }
@@ -88,16 +88,20 @@ pub fn WebView(
     controller: Option<WebViewController>,
     transparent: Option<bool>,
     devtools: Option<bool>,
+    proxy: Option<lb_wry::ProxyConfig>,
 ) {
     use crate::hooks::use_state;
 
     let (get_wv, set_wv) = use_state(None::<Entity<gpui_wry::WebView>>, window, cx);
-    println!("WebView rendering... wv exists? {}", get_wv(cx).is_some());
+    
 
     if get_wv(cx).is_none() {
         let wv = cx.new(|cx| {
             let mut builder = lb_wry::WebViewBuilder::new();
             builder = builder.with_url(&url);
+            if let Some(p) = proxy {
+                builder = builder.with_proxy_config(p);
+            }
 
             if devtools.unwrap_or(cfg!(debug_assertions)) {
                 #[cfg(debug_assertions)]
@@ -162,3 +166,4 @@ pub fn WebView(
         </div>
     }
 }
+

@@ -6,6 +6,9 @@ pub use zopra_gpui_view::rsx as view;
 pub use zopra_macros::component;
 pub use zopra_macros::signals;
 pub mod components;
+#[cfg(feature = "wry")]
+pub use lb_wry;
 
 #[cfg(feature = "wry")]
 pub use components::webview::{WebView, WebViewController, WebViewProps};
+

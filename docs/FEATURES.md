@@ -6,6 +6,9 @@ Zopra provides several optional features that can be enabled in your `Cargo.toml
 
 Enables the `WebView` component, backed by `gpui-wry` and `tauri-apps/wry`. This allows you to easily embed full web views into your native GPUI applications using Zopra's declarative `rsx` syntax.
 
+> [!WARNING]
+> Webview works only with transparent={Some(true)} mode.
+
 ### Usage
 
 Add the feature to your `Cargo.toml`:
@@ -63,6 +66,7 @@ pub fn browser_view() {
                 controller={webview_ctrl.clone()}
                 url={url()}
                 class="flex-1 border border-gray-300 rounded-md"
+                transparent={Some(true)}
             />
         </div>
     }
