@@ -9,7 +9,6 @@ pub fn use_table<D: TableDelegate + 'static, F: FnOnce() -> D>(
 ) -> Entity<TableState<D>> {
     use_table_with(init_delegate, |s| s, window, cx)
 }
-
 #[track_caller]
 pub fn use_table_with<
     D: TableDelegate + 'static,
@@ -23,13 +22,7 @@ pub fn use_table_with<
 ) -> Entity<TableState<D>> {
     let entity: Entity<Option<Entity<TableState<D>>>> = window.use_state(cx, |_window, _cx| None);
 
-    let state_entity_opt = entity.read(cx).clone();
-
-    if let Some(state_entity) = state_entity_opt {
-        let new_delegate = init_delegate();
-        state_entity.update(cx, |state, _cx| {
-            *state.delegate_mut() = new_delegate;
-        });
+    if let Some(state_entity) = entity.read(cx).clone() {
         state_entity
     } else {
         let delegate = init_delegate();
