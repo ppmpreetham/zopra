@@ -3,13 +3,11 @@
 //! NOTE: if you want to look at window dependent hooks (`use_state`, `use_callback`),
 //! they are covered by the integration tests in `tests/hooks.rs`.
 
-use gpui_kit::{App, AppContext, Entity, EventEmitter, TestAppContext};
+use gpui_kit::{AppContext, Entity, EventEmitter, TestAppContext};
 use std::{cell::RefCell, rc::Rc};
 
+use super::run_effect;
 use super::{use_async, use_event};
-use crate::use_effect;
-
-struct Counter(u32);
 
 struct Emitter;
 
@@ -20,71 +18,24 @@ struct Ping(u32);
 
 // #region use_effect
 #[gpui_kit::test]
-async fn effect_runs_when_dependency_notifies(cx: &mut TestAppContext) {
+async fn effect_runs_on_mount_and_when_value_dependencies_change(cx: &mut TestAppContext) {
     let runs = Rc::new(RefCell::new(Vec::<u32>::new()));
-    let dep: Entity<Counter> = cx.new(|_| Counter(0));
-    let _observer: Entity<Counter> = cx.new(|cx| {
+    let window = cx.add_empty_window();
+
+    for dependency in [1, 1, 2] {
         let runs = Rc::clone(&runs);
-        let dep_effect = dep.clone();
-        use_effect!(
-            move |cx: &mut App| {
-                runs.borrow_mut().push(dep_effect.read(cx).0);
-            },
-            [dep.clone()],
-            cx
-        );
-        Counter(0)
-    });
+        window.update(|window, app| {
+            run_effect(
+                dependency,
+                move || runs.borrow_mut().push(dependency),
+                window,
+                app,
+            )
+        });
+    }
+    cx.run_until_parked();
 
-    assert_eq!(*runs.borrow(), Vec::<u32>::new());
-    let dep_clone = dep.clone();
-    dep.update(cx, |state, cx| {
-        state.0 = 7;
-        cx.notify();
-    });
-    let _ = dep_clone;
-    assert_eq!(*runs.borrow(), vec![7]);
-    let other: Entity<Counter> = cx.new(|_| Counter(0));
-    other.update(cx, |_, cx| cx.notify());
-    assert_eq!(*runs.borrow(), vec![7]);
-}
-
-#[gpui_kit::test]
-async fn each_dependency_gets_its_own_effect_runner(cx: &mut TestAppContext) {
-    let runs = Rc::new(RefCell::new(0u32));
-    let a: Entity<Counter> = cx.new(|_| Counter(0));
-    let b: Entity<Counter> = cx.new(|_| Counter(0));
-    let _observer: Entity<Counter> = cx.new(|cx| {
-        let r1 = Rc::clone(&runs);
-        use_effect!(move |_| *r1.borrow_mut() += 1, [a], cx);
-        let r2 = Rc::clone(&runs);
-        use_effect!(move |_| *r2.borrow_mut() += 1, [b], cx);
-        Counter(0)
-    });
-
-    assert_eq!(*runs.borrow(), 0);
-    a.update(cx, |_, cx| cx.notify());
-    assert_eq!(*runs.borrow(), 1);
-    b.update(cx, |_, cx| cx.notify());
-    assert_eq!(*runs.borrow(), 2);
-}
-
-#[gpui_kit::test]
-async fn effect_is_safe_after_observer_is_released(cx: &mut TestAppContext) {
-    let runs = Rc::new(RefCell::new(0u32));
-    let dep: Entity<Counter> = cx.new(|_| Counter(0));
-    let observer: Entity<Counter> = cx.new(|cx| {
-        let r = Rc::clone(&runs);
-        use_effect!(move |_| *r.borrow_mut() += 1, [dep.clone()], cx);
-        Counter(0)
-    });
-
-    dep.update(cx, |_, cx| cx.notify());
-    assert_eq!(*runs.borrow(), 1);
-
-    drop(observer);
-    dep.update(cx, |_, cx| cx.notify());
-    assert_eq!(*runs.borrow(), 1);
+    assert_eq!(*runs.borrow(), vec![1, 2]);
 }
 // #endregion
 

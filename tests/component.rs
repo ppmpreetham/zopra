@@ -8,10 +8,10 @@ use zopra::{component, hooks::use_state, signals};
 
 #[component]
 fn match_guard_component() {
-    let (count, _set_count) = use_state(0);
+    let (count, _set_count) = use_state(|| 0);
 
     let label = match Some("big") {
-        Some(name) if count() > 10 => format!("{name}: many"),
+        Some(name) if *count > 10 => format!("{name}: many"),
         Some(name) => format!("{name}: few"),
         None => String::new(),
     };
@@ -21,15 +21,15 @@ fn match_guard_component() {
 
 #[component]
 fn shadowed_signal_component() {
-    let (count, _set_count) = use_state(0);
+    let (count, _set_count) = use_state(|| 0);
 
     let label = {
-        let _outer_read = count();
+        let _outer_read = *count;
         let count = || 42i32;
         format!("inner: {}", count())
     };
 
-    div().child(label).child(count().to_string())
+    div().child(label).child(count.to_string())
 }
 
 mod third_party {
@@ -48,7 +48,7 @@ fn collision_component() {
     assert_eq!(doubled, 42);
 
     third_party::use_callback(|| {
-        let _ = 42i32;
+        _ = 42i32;
     });
 
     div()
@@ -56,24 +56,24 @@ fn collision_component() {
 
 #[component]
 fn qualified_hook_component() {
-    let (count, set_count) = zopra::hooks::use_state(7);
-    set_count(count() + 1);
-    div().child(count().to_string())
+    let (count, set_count) = zopra::hooks::use_state(|| 7);
+    set_count(*count + 1, cx);
+    div().child(count.to_string())
 }
 
 #[component]
 fn macro_signal_component() {
     macro_rules! counter {
         ($get:ident, $set:ident) => {
-            let ($get, $set) = use_state(0, window, cx);
+            let ($get, $set) = use_state(|| 0, window, cx);
         };
     }
     counter!(count, set_count);
-    signals!(count, set_count);
+    signals!(count);
 
-    let label = format!("Count: {}", count());
-    set_count(5);
-    let label = format!("{label} -> {}", count());
+    let label = format!("Count: {count}");
+    set_count.set(5, cx);
+    let label = format!("{label} -> {count}");
 
     div().child(label)
 }
@@ -83,12 +83,31 @@ fn greet(name: String, count: u32) {
     div().child(format!("Hello, {name} x{count}!"))
 }
 
+#[derive(Clone, PartialEq)]
+struct BorrowedModel {
+    title: gpui_kit::SharedString,
+}
+
+#[component]
+fn borrowed_label(label: &str, model: &BorrowedModel, optional: Option<&BorrowedModel>) {
+    let optional_title = optional.map_or("none", |value| value.title.as_ref());
+    div().child(format!("{label}: {} ({optional_title})", model.title))
+}
+
+#[component]
+fn borrowed_props_parent() {
+    let model = BorrowedModel {
+        title: "borrowed".into(),
+    };
+    view! { <BorrowedLabel label="todo" model={&model} optional={&model} /> }
+}
+
 use zopra_gpui_view::rsx as view;
 
 #[component]
 fn greet_click(name: String) {
-    let (clicked, set_clicked) = use_state(0);
-    let label = clicked().to_string();
+    let (clicked, set_clicked) = use_state(|| 0);
+    let label = clicked.to_string();
 
     div()
         .flex()
@@ -98,7 +117,7 @@ fn greet_click(name: String) {
             div()
                 .id("greet-btn")
                 .cursor_pointer()
-                .on_click(move |_, _, cx| set_clicked(clicked() + 1))
+                .on_click(move |_, _, cx| set_clicked.set(*clicked + 1, cx))
                 .child(label),
         )
 }
@@ -108,7 +127,7 @@ async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
     let window = cx.add_empty_window();
     window.update(|window, cx| {
         let el = GreetProps::new()
-            .name("builder".into())
+            .name("builder")
             .count(3)
             .render(window, cx);
         let _: AnyElement = el.into_any_element();
@@ -117,7 +136,7 @@ async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
     let window2 = cx.add_empty_window();
     window2.update(|window, cx| {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = GreetProps::new().count(1).render(window, cx);
+            _ = GreetProps::new().count(1).render(window, cx);
         }));
         assert!(
             result.is_err(),
@@ -162,6 +181,7 @@ impl Render for Case {
             "collision" => collision_component(window, cx).into_any_element(),
             "qualified" => qualified_hook_component(window, cx).into_any_element(),
             "macro_signal" => macro_signal_component(window, cx).into_any_element(),
+            "borrowed_props" => borrowed_props_parent(window, cx).into_any_element(),
             "rsx" => rsx_host_component(window, cx).into_any_element(),
             "rsx_direct" => rsx_direct_component(window, cx).into_any_element(),
             "rsx_nested" => rsx_nested_component(window, cx).into_any_element(),
@@ -179,6 +199,7 @@ async fn components_render(cx: &mut TestAppContext) {
         "collision",
         "qualified",
         "macro_signal",
+        "borrowed_props",
         "rsx",
         "rsx_direct",
         "rsx_nested",

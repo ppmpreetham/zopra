@@ -7,7 +7,9 @@ use gpui_kit::{
 use zopra::hooks::{use_callback, use_state};
 
 struct SignalView {
+    #[allow(clippy::type_complexity)]
     get: Option<Box<dyn Fn(&App) -> u32>>,
+    #[allow(clippy::type_complexity)]
     set: Option<Box<dyn Fn(u32, &mut App)>>,
 }
 
@@ -22,17 +24,22 @@ impl SignalView {
 
 impl Render for SignalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (get, set) = use_state(0u32, window, cx);
-        self.get = Some(Box::new(get));
-        self.set = Some(Box::new(set));
+        let (_, setter) = use_state(|| 0u32, window, cx);
+        let getter = setter.clone();
+        self.get = Some(Box::new(move |cx| *getter.current(cx)));
+        self.set = Some(Box::new(move |value, cx| setter.set(value, cx)));
         div()
     }
 }
 
 struct TwoSignalsView {
+    #[allow(clippy::type_complexity)]
     a_get: Option<Box<dyn Fn(&App) -> u32>>,
+    #[allow(clippy::type_complexity)]
     a_set: Option<Box<dyn Fn(u32, &mut App)>>,
+    #[allow(clippy::type_complexity)]
     b_get: Option<Box<dyn Fn(&App) -> u32>>,
+    #[allow(clippy::type_complexity)]
     b_set: Option<Box<dyn Fn(u32, &mut App)>>,
 }
 
@@ -49,12 +56,14 @@ impl TwoSignalsView {
 
 impl Render for TwoSignalsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (get_a, set_a) = use_state(10u32, window, cx);
-        let (get_b, set_b) = use_state(20u32, window, cx);
-        self.a_get = Some(Box::new(get_a));
-        self.a_set = Some(Box::new(set_a));
-        self.b_get = Some(Box::new(get_b));
-        self.b_set = Some(Box::new(set_b));
+        let (_, set_a) = use_state(|| 10u32, window, cx);
+        let (_, set_b) = use_state(|| 20u32, window, cx);
+        let get_a = set_a.clone();
+        let get_b = set_b.clone();
+        self.a_get = Some(Box::new(move |cx| *get_a.current(cx)));
+        self.a_set = Some(Box::new(move |value, cx| set_a.set(value, cx)));
+        self.b_get = Some(Box::new(move |cx| *get_b.current(cx)));
+        self.b_set = Some(Box::new(move |value, cx| set_b.set(value, cx)));
         div()
     }
 }
