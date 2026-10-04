@@ -1,3 +1,6 @@
+pub mod activity;
 pub mod declarative_table;
 #[cfg(feature = "wry")]
 pub mod webview;
+
+pub use activity::ActivityProps;
