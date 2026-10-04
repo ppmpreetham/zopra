@@ -5,7 +5,7 @@
 /// # Example
 ///
 /// `ignore
-/// let (count, set_count) = use_state(0);
+/// let (count, set_count) = use_signal(0);
 ///
 /// set_count(1);
 ///
@@ -13,7 +13,7 @@
 /// assert_eq!(value, 1);
 /// `
 #[track_caller]
-pub fn use_state<T: 'static + Clone>(
+pub fn use_signal<T: 'static + Clone>(
     initial: T,
     window: &mut Window,
     cx: &mut App,
