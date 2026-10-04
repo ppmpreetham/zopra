@@ -41,20 +41,18 @@ cargo run
 
 ```rust
 #[component]
-fn profile(username: &'static str) {
-    let (likes, set_likes) = use_state(0);
+fn profile(username: &str) {
+    let (likes, set_likes) = use_state(0usize);
 
-    use_effect!(move || {
-        println!("{username} now has {} likes!", likes());
-    }, [likes]);
+    use_effect!(|| println!("{username} now has {likes} likes!"), [likes]);
 
     view! {
         <div
             class="flex items-center gap-4 p-4 bg-zinc-900 rounded-xl"
-            on_click={move || set_likes(likes() + 1)}
+            onClick={|| set_likes(*likes + 1)}
         >
             <span class="text-white font-bold">{username}</span>
-            <span class="text-zinc-400">"Likes: " {likes()}</span>
+            <span class="text-zinc-400">{format!("Likes: {likes}")}</span>
         </div>
     }
 }
