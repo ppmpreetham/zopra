@@ -28,43 +28,34 @@ use zopra::components::webview::{WebView, use_webview};
 
 #[component]
 pub fn browser_view() {
-    let (url, set_url) = use_state("https://gpui-kit.com".to_string());
+    let (url, set_url) = use_state(String::from("https://gpui-kit.com"));
 
     // use_webview hook
-    let webview_ctrl = use_webview();
+    let webview_ctrl = use_webview(window, cx);
 
     view! {
         <div class="flex flex-col size-full p-2 bg-gray-50">
             <div class="flex flex-row gap-2">
                 <button
                     label="Back"
-                    on_click={
-                        let ctrl = webview_ctrl.clone();
-                        move |_, _, cx| ctrl.back(cx)
-                    }
+                    on_click={|_, _, cx| webview_ctrl.back(cx)}
                 />
                 <button
                     label="Forward"
-                    on_click={
-                        let ctrl = webview_ctrl.clone();
-                        move |_, _, cx| ctrl.forward(cx)
-                    }
+                    on_click={|_, _, cx| webview_ctrl.forward(cx)}
                 />
                 <button
                     label="Load Example"
-                    on_click={
-                        let ctrl = webview_ctrl.clone();
-                        move |_, _, cx| {
-                            set_url("https://example.com".to_string(), cx);
-                            ctrl.load_url("https://example.com", cx);
-                        }
-                    }
+                    on_click={|_, _, cx| {
+                        set_url("https://example.com");
+                        webview_ctrl.load_url("https://example.com", cx);
+                    }}
                 />
             </div>
 
             <WebView
                 controller={webview_ctrl.clone()}
-                url={url()}
+                url={url.to_string()}
                 class="flex-1 border border-gray-300 rounded-md"
                 transparent={Some(true)}
             />

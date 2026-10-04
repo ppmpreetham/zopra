@@ -1,84 +1,108 @@
 #[cfg(feature = "wry")]
+use std::cell::RefCell;
+#[cfg(feature = "wry")]
+use std::rc::Rc;
+
+#[cfg(feature = "wry")]
 use gpui_kit::prelude::*;
 #[cfg(feature = "wry")]
 use gpui_kit::*;
 #[cfg(feature = "wry")]
-use gpui_wry;
-#[cfg(feature = "wry")]
-use std::sync::{Arc, Mutex};
-#[cfg(feature = "wry")]
 use zopra_macros::component;
 
 #[cfg(feature = "wry")]
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WebViewController {
-    pub webview: Arc<Mutex<Option<Entity<gpui_wry::WebView>>>>,
-}
-
-#[cfg(feature = "wry")]
-impl Default for WebViewController {
-    fn default() -> Self {
-        Self::new()
-    }
+    webview: Rc<RefCell<Option<gpui_kit::WeakEntity<gpui_wry::WebView>>>>,
 }
 
 #[cfg(feature = "wry")]
 impl WebViewController {
-    pub fn new() -> Self {
-        Self {
-            webview: Arc::new(Mutex::new(None)),
-        }
+    pub fn set(&self, webview: &Entity<gpui_wry::WebView>) {
+        *self.webview.borrow_mut() = Some(webview.downgrade());
+    }
+
+    fn with_webview<R>(
+        &self,
+        f: impl FnOnce(&Entity<gpui_wry::WebView>, &mut App) -> R,
+        cx: &mut App,
+    ) -> Option<R> {
+        let weak = self.webview.borrow().as_ref()?.clone();
+        let entity = weak.upgrade()?;
+        Some(f(&entity, cx))
     }
 
     pub fn load_url(&self, url: &str, cx: &mut App) {
-
-        if let Ok(guard) = self.webview.lock() {
-
-            if let Some(wv) = &*guard {
-
-                wv.update(cx, |view, _| {
-
-                    view.load_url(url);
-                });
-            }
-        }
+        self.with_webview(|wv, cx| wv.update(cx, |view, _| view.load_url(url)), cx);
     }
 
     pub fn back(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock()
-            && let Some(wv) = &*guard
-        {
-            wv.update(cx, |view, _| {
-                _ = view.back();
-            });
-        }
+        self.with_webview(|wv, cx| wv.update(cx, |view, _| _ = view.back()), cx);
     }
 
     pub fn forward(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock()
-            && let Some(wv) = &*guard
-        {
-            wv.update(cx, |view, _| {
-                _ = view.raw().evaluate_script("history.forward();");
-            });
-        }
+        self.with_webview(
+            |wv, cx| {
+                wv.update(cx, |view, _| {
+                    _ = view.raw().evaluate_script("history.forward();")
+                })
+            },
+            cx,
+        );
     }
 
     pub fn reload(&self, cx: &mut App) {
-        if let Ok(guard) = self.webview.lock()
-            && let Some(wv) = &*guard
-        {
-            wv.update(cx, |view, _| {
-                _ = view.raw().evaluate_script("location.reload();");
-            });
-        }
+        self.with_webview(
+            |wv, cx| {
+                wv.update(cx, |view, _| {
+                    _ = view.raw().evaluate_script("location.reload();")
+                })
+            },
+            cx,
+        );
     }
 }
 
 #[cfg(feature = "wry")]
-pub fn use_webview(window: &mut gpui_kit::Window, cx: &mut gpui_kit::App) -> WebViewController {
-    let (ctrl, _) = crate::hooks::use_state(WebViewController::new(), window, cx);
-    ctrl(cx)
+pub fn use_webview(window: &mut Window, cx: &mut App) -> WebViewController {
+    crate::hooks::use_model(WebViewController::default, window, cx)
+        .read(cx)
+        .clone()
+}
+
+#[cfg(feature = "wry")]
+fn build_webview(
+    builder: lb_wry::WebViewBuilder,
+    window: &mut Window,
+) -> Result<lb_wry::WebView, String> {
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "android"
+    )))]
+    {
+        use gpui_wry::lb_wry::WebViewBuilderExtUnix;
+        let fixed = gtk::Fixed::builder().build();
+        fixed.show_all();
+        return builder.build_gtk(&fixed).map_err(|err| err.to_string());
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "android"
+    ))]
+    {
+        use raw_window_handle::HasWindowHandle;
+        let handle = window
+            .window_handle()
+            .map_err(|_| "no window handle".to_string())?;
+        builder
+            .build_as_child(&handle)
+            .map_err(|err| err.to_string())
+    }
 }
 
 #[cfg(feature = "wry")]
@@ -92,73 +116,37 @@ pub fn WebView(
 ) {
     use crate::hooks::use_state;
 
-    let (get_wv, set_wv) = use_state(None::<Entity<gpui_wry::WebView>>, window, cx);
-    
+    let (wv, set_wv) = use_state(|| None::<Entity<gpui_wry::WebView>>, window, cx);
 
-    if get_wv(cx).is_none() {
-        let wv = cx.new(|cx| {
-            let mut builder = lb_wry::WebViewBuilder::new();
-            builder = builder.with_url(&url);
-            if let Some(p) = proxy {
-                builder = builder.with_proxy_config(p);
-            }
-
-            if devtools.unwrap_or(cfg!(debug_assertions)) {
-                #[cfg(debug_assertions)]
-                {
-                    builder = builder.with_devtools(true);
-                }
-            }
-
-            if transparent.unwrap_or(false) {
-                builder = builder.with_transparent(true);
-            }
-
-            #[cfg(not(any(
-                target_os = "windows",
-                target_os = "macos",
-                target_os = "ios",
-                target_os = "android"
-            )))]
-            let webview = {
-                use gpui_wry::lb_wry::WebViewBuilderExtUnix;
-                use gtk::prelude::*;
-                let fixed = gtk::Fixed::builder().build();
-                fixed.show_all();
-                builder.build_gtk(&fixed).unwrap()
-            };
-            #[cfg(any(
-                target_os = "windows",
-                target_os = "macos",
-                target_os = "ios",
-                target_os = "android"
-            ))]
-            let webview = {
-                use raw_window_handle::HasWindowHandle;
-                let window_handle = window.window_handle().expect("No window handle");
-                builder.build_as_child(&window_handle).unwrap()
-            };
-
-            let view = gpui_wry::WebView::new(webview, window, cx);
-            view
-        });
-
-        wv.update(cx, |v, _| v.load_url(&url));
-
-        if let Some(ctrl) = &controller
-            && let Ok(mut guard) = ctrl.webview.lock()
-        {
-            *guard = Some(wv.clone());
+    if wv.is_none() {
+        let mut builder = lb_wry::WebViewBuilder::new().with_url(&url);
+        if let Some(p) = proxy {
+            builder = builder.with_proxy_config(p);
+        }
+        if devtools.unwrap_or(cfg!(debug_assertions)) && cfg!(debug_assertions) {
+            builder = builder.with_devtools(true);
+        }
+        if transparent.unwrap_or(false) {
+            builder = builder.with_transparent(true);
         }
 
-        set_wv(Some(wv.clone()), cx);
+        let Some(webview) = build_webview(builder, window).ok() else {
+            return crate::view! { <div class="size-full" /> };
+        };
+
+        let wv = cx.new(|inner_cx| gpui_wry::WebView::new(webview, window, inner_cx));
+
+        if let Some(ctrl) = &controller {
+            ctrl.set(&wv);
+        }
+        set_wv.set(Some(wv), cx);
     }
 
     crate::view! {
         <div class="size-full">
             {
-                if let Some(wv) = get_wv(cx) {
-                    wv.into_any_element()
+                if let Some(wv) = wv.as_ref() {
+                    wv.clone().into_any_element()
                 } else {
                     div().into_any_element()
                 }
@@ -166,4 +154,3 @@ pub fn WebView(
         </div>
     }
 }
-
