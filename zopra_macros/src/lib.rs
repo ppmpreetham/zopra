@@ -946,7 +946,10 @@ impl VisitMut for InjectCx {
                     .cloned()
                     .collect::<TokenStream2>();
                 if let Ok(Expr::Closure(closure)) = syn::parse2::<Expr>(effect_tokens) {
-                    let wrapped = self.wrap_closure(closure, None);
+                    let wrapped = self.wrap_closure(
+                        closure,
+                        Some(vec![syn::parse_quote!(_window), syn::parse_quote!(cx)]),
+                    );
                     let mut wrapped = wrapped;
                     self.visit_expr_mut(&mut wrapped);
                     let remaining = token_vec[comma_ix..]
@@ -964,6 +967,7 @@ impl VisitMut for InjectCx {
         }
 
         if is_effect_mac {
+            Self::append_ident(&mut tokens, "window", mac.bang_token.span);
             // lets the declarative macro distinguish component-rewritten calls
             // from direct use outside a component, where `window` and `cx` are unavailable.
             Self::append_ident(&mut tokens, "__zopra_component", mac.bang_token.span);

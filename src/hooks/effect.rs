@@ -4,13 +4,13 @@ use gpui_kit::{App, Entity, Window};
 pub fn run_effect<D, F>(deps: D, effect: F, window: &mut Window, cx: &mut App)
 where
     D: Clone + PartialEq + 'static,
-    F: FnOnce() + 'static,
+    F: FnOnce(&mut Window, &mut App) + 'static,
 {
     let previous: Entity<Option<D>> = window.use_state(cx, |_window, _cx| None);
     let changed = previous.read(cx).as_ref() != Some(&deps);
     if changed {
         previous.update(cx, |old, _cx| *old = Some(deps));
-        window.defer(cx, move |_window, _cx| effect());
+        window.defer(cx, move |_window, _cx| effect(_window, _cx));
     }
 }
 
@@ -32,8 +32,8 @@ where
 
 #[macro_export]
 macro_rules! use_effect {
-    ($effect:expr, [$($dep:expr),* $(,)?], $cx:expr, __zopra_component $(,)?) => {{
-        $crate::hooks::run_effect(($($dep,)*), $effect, window, $cx);
+    ($effect:expr, [$($dep:expr),* $(,)?], $cx:expr, $window:expr, __zopra_component $(,)?) => {{
+        $crate::hooks::run_effect(($($dep,)*), $effect, $window, $cx);
     }};
     ($effect:expr, [$($dep:expr),* $(,)?], $cx:expr $(,)?) => {
         compile_error!(
