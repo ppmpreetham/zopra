@@ -341,7 +341,10 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> Stateful<Div> {
-        let data_ix = self.data_index(row_ix);
+        let data_ix = row_ix
+            .checked_sub(self.data_offset)
+            .map(|row| self.data_index(row))
+            .unwrap_or(row_ix);
         if let Some(handler) = &self.render_row
             && let Some(item) = self.get_data(row_ix)
         {
