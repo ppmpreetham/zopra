@@ -149,6 +149,8 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             return;
         }
         let Some(sorter) = self.sorters.get(column).and_then(Option::as_ref) else {
+            self.order = None;
+            self.active_sort = None;
             return;
         };
         let mut order = sorter(self.data.as_slice());
