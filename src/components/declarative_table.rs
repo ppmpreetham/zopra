@@ -88,6 +88,10 @@ where
         Box<dyn Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu>,
     >,
     pub on_lazy_load: Option<LoadCallback>,
+    pub explicit_row_count: Option<usize>,
+    pub data_offset: usize,
+    #[allow(clippy::type_complexity)]
+    pub on_visible_rows_changed: Option<Rc<dyn Fn(Range<usize>, &mut App)>>,
     sorters: Vec<Option<Rc<SortFn<T>>>>,
 
     loading: bool,
@@ -114,6 +118,9 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             on_sort: None,
             on_context_menu: None,
             on_lazy_load: None,
+            explicit_row_count: None,
+            data_offset: 0,
+            on_visible_rows_changed: None,
             sorters,
             loading: false,
             eof: false,
@@ -134,6 +141,11 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 
     fn set_order(&mut self, column: usize, sort: ColumnSort) {
+        if sort == ColumnSort::Default {
+            self.order = None;
+            self.active_sort = None;
+            return;
+        }
         let Some(sorter) = self.sorters.get(column).and_then(Option::as_ref) else {
             return;
         };
@@ -151,6 +163,11 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             .and_then(|order| order.get(row))
             .copied()
             .unwrap_or(row)
+    }
+
+    fn get_data(&self, row_ix: usize) -> Option<&T> {
+        let row = row_ix.checked_sub(self.data_offset)?;
+        self.data.get(self.data_index(row))
     }
 
     #[must_use]
@@ -180,6 +197,36 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 
     #[must_use]
+    pub fn rows_count(mut self, count: usize) -> Self {
+        self.explicit_row_count = Some(count);
+        self
+    }
+
+    #[must_use]
+    pub fn data_offset(mut self, offset: usize) -> Self {
+        self.data_offset = offset;
+        self
+    }
+
+    #[must_use]
+    pub fn on_visible_rows_changed(mut self, handler: impl Fn(Range<usize>, &mut App) + 'static) -> Self {
+        self.on_visible_rows_changed = Some(Rc::new(handler));
+        self
+    }
+
+    pub fn set_rows_count(&mut self, count: usize) {
+        self.explicit_row_count = Some(count);
+    }
+
+    pub fn set_data_offset(&mut self, offset: usize) {
+        self.data_offset = offset;
+    }
+
+    pub fn set_on_visible_rows_changed(&mut self, handler: impl Fn(Range<usize>, &mut App) + 'static) {
+        self.on_visible_rows_changed = Some(Rc::new(handler));
+    }
+
+    #[must_use]
     pub fn on_lazy_load(mut self, handler: impl Fn(&mut App) + 'static) -> Self {
         self.on_lazy_load = Some(Rc::new(handler));
         self
@@ -187,6 +234,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
 
     #[must_use]
     pub fn sorters(mut self, sorters: Vec<Option<Rc<SortFn<T>>>>) -> Self {
+        debug_assert_eq!(sorters.len(), self.columns.len());
         self.sorters = sorters;
         self
     }
@@ -232,7 +280,7 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
     }
 
     fn rows_count(&self, _cx: &App) -> usize {
-        self.order.as_ref().map_or(self.data.len(), Vec::len)
+      self.explicit_row_count.unwrap_or(self.data.len())
     }
 
     fn column(&self, col_ix: usize, _cx: &App) -> Column {
@@ -272,8 +320,7 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         _window: &mut Window,
         _cx: &mut Context<TableState<Self>>,
     ) -> PopupMenu {
-        let data_ix = self.data_index(row_ix);
-        if let (Some(handler), Some(item)) = (&self.on_context_menu, self.data.get(data_ix)) {
+        if let (Some(handler), Some(item)) = (&self.on_context_menu, self.get_data(row_ix)) {
             handler(item, row_ix, menu, _window, _cx)
         } else {
             menu
@@ -288,11 +335,11 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
     ) -> Stateful<Div> {
         let data_ix = self.data_index(row_ix);
         if let Some(handler) = &self.render_row
-            && let Some(item) = self.data.get(data_ix)
+            && let Some(item) = self.get_data(row_ix)
         {
             return handler(data_ix, item, window, cx);
         }
-        div().id(row_ix)
+        div().id(("row", row_ix))
     }
 
     fn render_td(
@@ -306,8 +353,7 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
             return div().into_any_element();
         };
 
-        let data_ix = self.data_index(row_ix);
-        if let Some(item) = self.data.get(data_ix) {
+        if let Some(item) = self.get_data(row_ix) {
             (self.render_cell)(item, col.key.as_ref(), window, cx)
         } else {
             div().into_any_element()
@@ -327,15 +373,7 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
             }
             return;
         }
-        let Some(sorter) = self.sorters.get(col_ix).cloned().flatten() else {
-            return;
-        };
-        let mut order = sorter(self.data.as_slice());
-        if sort == ColumnSort::Descending {
-            order.reverse();
-        }
-        self.order = Some(order);
-        self.active_sort = Some((col_ix, sort));
+        self.set_order(col_ix, sort);
         cx.notify();
     }
 
@@ -344,17 +382,25 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
     }
 
     fn load_more(&mut self, _window: &mut Window, cx: &mut Context<TableState<Self>>) {
-        if let Some(handler) = &self.on_lazy_load {
-            handler(cx);
-        }
+      if self.loading {
+              return;
+          }
+      self.loading = true;
+      if let Some(handler) = &self.on_lazy_load {
+          handler(cx);
+      }
     }
 
     fn visible_rows_changed(
         &mut self,
         visible_range: Range<usize>,
         _window: &mut Window,
-        _cx: &mut Context<TableState<Self>>,
+        cx: &mut Context<TableState<Self>>,
     ) {
+        if let Some(handler) = &self.on_visible_rows_changed {
+            use std::ops::DerefMut;
+            handler(visible_range.clone(), cx.deref_mut());
+        }
         self.visible_rows = visible_range;
     }
 
