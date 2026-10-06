@@ -307,6 +307,23 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         self.group_headers.clone()
     }
 
+    fn move_column(
+          &mut self,
+          col_ix: usize,
+          to_ix: usize,
+          _window: &mut Window,
+          _cx: &mut Context<TableState<Self>>,
+      ) {
+          let col = self.columns.remove(col_ix);
+          self.columns.insert(to_ix, col);
+          if col_ix < self.sorters.len() && to_ix < self.sorters.len() {
+              let sorter = self.sorters.remove(col_ix);
+              self.sorters.insert(to_ix, sorter);
+          }
+          self.active_sort = None;
+          self.order = None;
+      }
+
     fn render_th(
         &mut self,
         col_ix: usize,
