@@ -96,6 +96,7 @@ where
 
     loading: bool,
     eof: bool,
+    full_loading: bool,
     visible_rows: Range<usize>,
     visible_cols: Range<usize>,
 }
@@ -124,6 +125,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             sorters,
             loading: false,
             eof: false,
+            full_loading: false,
             visible_rows: 0..0,
             visible_cols: 0..0,
         }
@@ -249,6 +251,10 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
         self.loading = loading;
     }
 
+    pub fn set_full_loading(&mut self, full_loading: bool) {
+        self.full_loading = full_loading;
+    }
+
     pub fn set_eof(&mut self, eof: bool) {
         self.eof = eof;
     }
@@ -339,6 +345,7 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         {
             return handler(data_ix, item, window, cx);
         }
+
         div().id(("row", row_ix))
     }
 
@@ -379,6 +386,10 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
 
     fn has_more(&self, _cx: &App) -> bool {
         self.on_lazy_load.is_some() && !self.loading && !self.eof
+    }
+
+    fn loading(&self, _cx: &App) -> bool {
+        self.full_loading
     }
 
     fn load_more(&mut self, _window: &mut Window, cx: &mut Context<TableState<Self>>) {
