@@ -15,6 +15,11 @@
   A reactive framework for GPUI
 </p>
 
+## How is this different from others?
+
+Other frameworks like [gpuix](https://gpuix.dev/) and [gpui-native](https://github.com/countradooku/gpui-native) lets you write code in TS/JS and not RUST!
+Zopra let's you write RUST, not JS. It gives you Reactive hooks and macros!!
+
 ## Install
 
 ```bash
