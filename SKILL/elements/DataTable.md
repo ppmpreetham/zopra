@@ -39,4 +39,4 @@ pub fn col_smoke_test() {
 
 ## Legacy API
 
-The former manual delegate example used the pre-Snap state API and no longer compiles. Use the `<DataTable rows={...}>` and nested `<Col ... />` syntax shown above.
+Use the `<DataTable rows={...}>` and nested `<Col ... />` syntax shown above. `rows` takes a `Vec<T>` or a `Signal<Vec<T>>`; a signal is read in place, and the table re-sorts only after it is written.

@@ -27,13 +27,46 @@ pub fn counter_button(initial_count: i32, label: String) {
     view! {
         <div
             class="flex items-center justify-center bg-[#ededed] p-4 rounded-md cursor-pointer hover:bg-[#d4d4d8]"
-            onClick={|| set_count(*count + 1)}
+            onClick={|| set_count(count() + 1)}
         >
-            {label} ": " {count}
+            {label} ": " {count().to_string()}
         </div>
     }
 }
 ```
+
+### Props
+
+A component's parameters are its props, set as attributes on its tag (`<CounterButton initial_count={1} label="Clicks" />`):
+
+- **Required:** a plain parameter. Leaving one off is a compile error: "`<CounterButton>` is missing the required prop `label`".
+- **Optional:** `Option<T>`. The attribute takes a `T` (`size={px(250.)}`), and a bare flag sets `true` (`vertical`).
+- **Callbacks:** `on_pick: Option<F>` with `F: Fn(..)` as a generic parameter. Optional and never boxed.
+- **Conversions:** `String` / `SharedString` props take anything stringy, `AnyElement` props take any element (`footer={view! { <div/> }}`), and `ElementId` props take `"text"`.
+- **`key`:** every tag accepts `key={..}` to keep a looped instance's state attached to its item. Without it, instances are told apart by render order.
+- **Reserved names:** `new`, `key`, `render` and `render_at` can't be prop names.
+
+A component normally renders an element. Declare a return type (`-> Tab`) when it builds something else for its parent, like the `zopra::ui` wrappers do.
+
+### Children
+
+Declare `children: Children` and place it with `{children}`. The content between the tags renders there, inside this component's render, so it sees the contexts this component provides:
+
+```rust
+#[component]
+fn card(title: SharedString, children: Children) {
+    view! {
+        <div class="rounded-md p-4">
+            <div class="font-bold">{title}</div>
+            {children}
+        </div>
+    }
+}
+
+// <Card title="Stats"><Chart /> "updated hourly"</Card>
+```
+
+`children: Children<Tab>` collects a specific child type instead of elements (a tab bar's tabs, a settings page's groups). Children are a generic closure, never boxed, and optional: `<Card title="x" />` is fine.
 
 ### Direct GPUI Attributes
 
@@ -87,11 +120,17 @@ _Tip: Prefer wrapping mixed children in a parent `<div/>` instead of using a fra
 
 ## 2. Event Handling & State
 
-Interactive GPUI events are mapped to camelCase or snake_case attributes. In a `#[component]` `view!`, the macro normalizes supported event closures and supplies the event parameters, `window`, and `cx`. You can write a short handler such as `onClick={|| set_count(*count + 1)}`. Use explicit parameters when a callback needs the event or GPUI context, or when using a GPUI callback outside a Zopra component.
+Interactive GPUI events are mapped to camelCase or snake_case attributes. In a `#[component]` `view!`, the macro supplies the missing `(event, window, cx)` parameters of GPUI events, so `onClick={|| set_count(count() + 1)}` works. Any other `on_*` closure keeps the parameters you write.
+
+Signal sugar (`count()`, `set_count(v)`) needs a GPUI context. Zopra finds it by:
+- position, for the closures it manages (event attributes, `use_event`, effects, `window.open`); there it can be called anything, or `_`;
+- otherwise, a closure parameter named `cx` or typed as a GPUI context (`&mut App`, `&mut Context<_>`, `&mut AsyncApp`).
+
+A `move` closure without a context of its own that reads a signal is a compile error explaining exactly that.
 
 **Common Event Attributes:**
 
-- `onClick` / `on_click`, `onChange` / `on_change`, `onAuxClick`
+- `onClick` / `on_click`, `onAuxClick`
 - `onHover` (Triggers on mouse enter/leave, boolean `is_hovered`)
 - `onMouseDown`, `onMouseUp`, `onMouseUpOut`
 - `onMouseExit`, `onMousePressure`, `captureMousePressure`
@@ -106,7 +145,27 @@ The normalizer covers a defined set of event attributes; it does not change arbi
 
 ## 3. Supported Elements & Tags
 
-`gpui-rsx` maps standard HTML tags to specific GPUI components natively:
+One rule: **lowercase tags are built-in elements, capitalized tags are components.** A capitalized tag is a `#[component]` (yours, or a `zopra::ui` one), and the content between its tags is its `children`.
+
+`zopra::ui` provides gpui-kit's widgets as components, shadcn-style:
+- `TitleBar`
+- `Sidebar`, `SidebarHeader`, `SidebarFooter`, `SidebarGroup`, `SidebarMenu`, `SidebarMenuItem`, `SidebarToggleButton`
+- `Resizable`, `ResizablePanel`
+- `TabBar`, `Tab`
+- `DropdownButton`
+- `Settings`, `SettingPage`, `SettingGroup`, `SettingItem` and the setting fields
+
+See `SKILL/elements/` for their props. Each takes `class`, compiled at build time like a `<div>`'s.
+
+The exceptions:
+- `<DataTable>` with `<Col>`s is compiled into a typed table.
+- `base={expr}` on any tag uses `expr` as the element and passes every other attribute to its builder methods, for gpui-kit options no wrapper exposes:
+
+```rust
+<div base={gpui_kit::component::tab::TabBar::new("tabs")} max_width={px(120.)} />
+```
+
+Built-in tags:
 
 - `<div>`: Standard layout container (`gpui::div()`).
 - `<kbd>`: Styled keyboard shortcuts.
@@ -123,21 +182,23 @@ The normalizer covers a defined set of event attributes; it does not change arbi
 
 ### Supported Syntax & Arbitrary Values
 
-- **Arbitrary Colors:** Full support for hex strings. `bg-[#0a0a0a]`, `text-[#ededed]`, `border-[#ffffff]`.
-- **Arbitrary Lengths:** You can bypass the spacing scale entirely using bracket syntax: `w-[150px]`, `w-[5rem]`, `p-[10px]`.
-- **Spacing Scale:** Standard tailwind spacing (e.g. `p-4`, `w-48`) natively maps to a `0.25rem` multiplier. So `w-48` evaluates exactly to 12rem (which GPUI translates into pixels).
-- **Core Layout:** `flex`, `flex-col`, `flex-row`, `items-center`, `justify-center`, `justify-between`, `size-full`, `w-full`, `h-full`, `absolute`, `relative`.
-- **Borders:** `border` (sets 1px width), `border-t`, `border-transparent`, `border-white`, `rounded-md`, `rounded-full`.
-- **Interaction Pseudo-classes (Static Only!):** `hover:`, `active:`, `focus:`, `group-hover:`, `group-active:` are completely supported.
+- **Colors:** the Tailwind v4.2 palette (incl. `mauve`, `olive`, `mist`, `taupe`), `black`, `white`, `transparent`, hex/`rgb()`/`rgba()` in brackets (`bg-[#0a0a0a]`), and theme colors (`bg-theme-muted`). Every color takes an opacity: `bg-red-500/50`, `text-theme-primary/25`, `border-black/[0.3]`.
+- **Spacing Scale:** `p-4`, `w-48` use the `0.25rem` step (`w-48` = 12rem). Also `px`, `full`, `auto` (`w-px`, `basis-full`, `ms-auto`), negatives (`-mt-2`), fractions on sizes (`w-1/2`), and brackets (`w-[150px]`, `p-[1rem]`, `h-[50%]`).
+- **Logical / extra lengths:** `ps pe ms me pbs pbe mbs mbe start end` (left-to-right), `basis-*`, `space-x-* / space-y-*` (become `gap-x` / `gap-y`).
+- **Layout:** flex classes, `grow-N`, `shrink-N`, `grid grid-cols-N grid-rows-N col-span-N col-start-N col-end-N row-*`, `place-items/content/self-*` (`place-items` aligns the cross axis only; GPUI has no `justify-items`), `overflow-hidden/visible/clip/auto/scroll` (+ `-x-`/`-y-`), `scrollbar-none`, `scrollbar-thin`, `scrollbar-[6px]`.
+- **Text:** `text-xs` .. `text-9xl`, `text-sm/6` (size/line height), `leading-tight` / `leading-6` / `leading-[1.4]`, `font-sans` / `font-mono` (theme fonts), `font-serif`, font weights.
+- **Borders & radius:** `border` (1px), `border-t`, `border-2`, colors; v4 radius scale `rounded-xs` .. `rounded-4xl`, `rounded` (.25rem), `-none`, `-full`, `-[6px]`, per side/corner (`rounded-t-lg`, `rounded-tl-xs`, `rounded-s-md`, `rounded-ee-xl`).
+- **Shadows & rings:** `shadow`, `shadow-2xs` .. `shadow-2xl`, `shadow-none`, `shadow-inner`, `inset-shadow-2xs/xs/sm`, `ring`, `ring-2`, `ring-[3px]`, `inset-ring-*`, and colors for each (`shadow-red-500/30`, `ring-theme-primary`). A ring with no color uses the theme's `ring`. Presets are GPUI's own `shadow_*` methods (same values as v4); colors, inset shadows and rings go onto that list. A `hover:` shadow replaces the whole list while hovered.
+- **Gradients:** `bg-linear-to-r` (or `bg-linear-45`, `bg-linear-[30deg]`) with `from-*` / `to-*` and optional `from-10%` / `to-90%`. GPUI gradients have two stops, so `via-*` is an error.
+- **Variants:** `hover:`, `active:`, `focus:`, `group-hover:`; `dark:` (theme mode); breakpoints `sm: md: lg: xl: 2xl:` and `max-sm:` .. `max-2xl:` (window width, in rems). Variants nest condition-first: `md:dark:hover:bg-white` works, `hover:md:...` is an error.
 
 ### 🛑 CRITICAL TAILWIND TRAPS & ERRORS
 
-If you get **`E0061: this method takes 1 argument but 0 arguments were supplied`**, you fell into one of these traps:
-
-- **`border` is a 1px border:** The class parser maps `border` to `.border_1()`. Directional classes such as `border-b` set the corresponding one-pixel border.
-
-- **Font family classes:** Browser Tailwind font-family utilities are not documented mappings in the current parser. Use an explicit GPUI font-family builder attribute when selecting a family.
-- **Arbitrary values:** The parser supports documented arbitrary lengths and colors, but not every CSS/Tailwind value. Use a direct GPUI attribute when a value does not map cleanly, and keep this guide aligned with the actual parser rather than assuming browser CSS behavior.
+- **Real Tailwind that GPUI can't do yet is a warning, and the class is ignored**, with what to use instead: `transition-*` / `animate-*` (use `with_animation`), filters, `rotate-*` / `scale-*`, `z-*`, `divide-*`, `outline-*`, `uppercase`, `tracking-*`, `fixed` / `sticky`, `inline-*`, `w-screen`, and variants like `disabled:`, `first:`, `data-*:`, `peer-*:`. Example: ``warning: ... `z-10` is ignored: GPUI doesn't support it yet. GPUI paints in tree order and has no z-index; ...``
+- **Unknown classes are compile errors** naming the class: ``Unknown class `flex-cols`. If it's a GPUI style method, use it as an attribute instead: `<div flex_cols />`.`` Reach for an attribute (`<div flex_grow={2.0} />`) for anything the classes don't cover.
+- **`dark:` needs `cx`, breakpoints need `window`** in scope with those names (components and `render` already have them). Dynamic classes (`class={expr}`) only cover the common subset, not variants, gradients or shadows; keep those in literal strings.
+- **`w-fit` is `w-auto`:** GPUI has no fit/min/max-content sizing.
+- **`border` is a 1px border:** `border` maps to `.border_1()`; directional classes such as `border-b` set that side's one-pixel border.
 
 ---
 
@@ -210,7 +271,7 @@ view! {
             </thead>
 
             // 4. TableBody (Mapped to <tbody>)
-            <tbody class="divide-y divide-[#272a2f]">
+            <tbody>
 
                 // 5. TableRow (Mapped to <tr>) with Tailwind hover states
                 <tr class="hover:bg-[#1d2024]">
@@ -255,7 +316,7 @@ view! {
 }
 ```
 
-For a data-backed table, `rows` accepts a `Vec<T>`, `Rc<Vec<T>>`, or `Snap<Vec<T>>`. The column accessor renders each value and can provide the sort key when that value implements `PartialOrd`:
+For a data-backed table, `rows` takes a `Vec<T>` or a `Signal<Vec<T>>`. A signal is read in place with no copy, and the table re-sorts only after the signal is written. Rows must be `Clone` (context menus get a copy of their row). The column accessor renders each value and can provide the sort key when that value implements `PartialOrd`:
 
 ```rust
 #[derive(Clone)]
@@ -285,15 +346,15 @@ fn invoices() {
 ## Resizable
 
 ```jsx
-use gpui_kit::component::resizable::*;
+use zopra::ui::{Resizable, ResizablePanel};
 use gpui_kit::px;
-use zopra::{component, hooks::use_state, view};
+use zopra::{component, view};
 
 #[component]
 pub fn interactive_layout() {
     view! {
-        // GPUI-RSX creates and retains resizable state from this stable id.
-        <Resizable id="main-layout" horizontal>
+        // a stable id keeps the panel sizes across renders
+        <Resizable id="main-layout">
 
             <ResizablePanel
                 size={px(250.0)}
@@ -342,47 +403,39 @@ When you write `<div class="hover:bg-white text-black">`, the macro parses suppo
 
 Hooks belong unconditionally at the top level of a `#[component]` body. Zopra injects `window` and `cx`, so component code normally omits those framework arguments. The rewriter reports a focused compile error when a hook is called inside a branch, nested block, or closure. See [`SKILL/hooks/`](hooks/README.md) for hook-specific behavior and diagnostics.
 
-The focused reference pages for each hook are in [`SKILL/hooks/`](hooks/README.md). They cover state, models, resources, effects, events, async work, callbacks, tables, window launchers, mount macros, and the optional Wry webview hook.
+The focused reference pages for each hook are in [`SKILL/hooks/`](hooks/README.md). They cover state, resources, effects, events, context, inputs, window launchers, and the optional Wry webview hook.
 
 ### `use_state`
 
-`use_state` returns an immutable `Snap<T>` and a callable `Setter<T>`. State types need `Clone + PartialEq`; derive both for structs. Reading, displaying, comparing, and field access work through deref. Arithmetic consumes values, so dereference explicitly. `set` skips equal values; closure setters mutate with copy-on-write and notify.
+`use_state` returns a `(getter, setter)` pair of `Signal<T>`: `Copy` handles to state owned by the app, so closures capture them without cloning. `count()` reads (clones), `count.read()` borrows, `set_count(v)` replaces and `set_count(|v| ..)` mutates in place; the macro passes `cx`. Reads always see the latest value, including in handlers and async tasks. `T` only needs `'static`.
 
 ```rust
 let (count, set_count) = use_state(0);
 let (draft, set_draft) = use_state(String::new());
 
 view! {
-    <button onClick={|| set_count(*count + 1)}>{format!("Count: {count}")}</button>
-    <input value={&draft} onChange={set_draft} />
+    <button onClick={|| set_count(count() + 1)}>{format!("Count: {}", count())}</button>
+    <input value={draft()} onChange={set_draft} />
     <button onClick={|| set_draft(|text| text.push('!'))}>"Edit"</button>
 }
 ```
 
-String literals passed to `use_state` become `SharedString`; use `String::new()` when you need to mutate the string in place. Event handlers capture the snapshot from the render that created them. Use `set_count(|value| *value += 1)` or `set_count.current()` for long-lived async work that needs the latest value.
+String literals passed to `use_state` become `SharedString`; use `String::new()` when you need to mutate the string in place. `use_signal(init)` returns one signal instead of a pair. A signal is disposed when its component unmounts: writes after that are ignored, and `try_update` returns `None` so long-running tasks can stop.
 
-### `use_model`
-
-Use `use_model` for large or frequently updated data that should not be cloned into snapshots and does not need `PartialEq`:
-
-```rust
-let rows = use_model(|| Vec::<Row>::new());
-rows.update(|rows| rows.push(Row::default()));
-let row_count = rows.read().len();
-```
+Signals are `Copy`, so sharing state is just passing the handle: as a `Signal<T>` prop, or with `provide_context(signal)` and `let s: Signal<T> = use_context();` in any component it renders (the innermost provider wins; components rendered outside that render, such as popup menu items, see no context). `set` skips equal values, so setting state during render cannot loop. Components rendered from one tag in a loop keep separate state; pass `key={id}` to keep it attached to an item when the list reorders.
 
 ### `use_resource`
 
-`use_resource(deps, load)` runs on mount and when the `Clone + PartialEq` dependency value changes. It returns `Snap<ResourceState<T, E>>` with `Loading`, `Ready(value)`, or `Failed(error)` variants. Older requests are ignored if a newer dependency value has started loading.
+`use_resource(deps, load)` runs on mount and when the `PartialEq` dependency value changes. It returns a `Signal<ResourceState<T, E>>` with `Loading`, `Ready(value)`, or `Failed(error)` variants. Older requests are ignored if a newer dependency value has started loading.
 
 ```rust
-let user = use_resource([user_id], || async move {
+let user = use_resource(user_id, || async move {
     fetch_user(user_id).await
 });
 
-match &*user {
+match user.read() {
     ResourceState::Loading => view! { <div>"Loading"</div> },
-    ResourceState::Ready(user) => view! { <div>{&user.name}</div> },
+    ResourceState::Ready(user) => view! { <div>{user.name.clone()}</div> },
     ResourceState::Failed(error) => view! { <div>{error.to_string()}</div> },
 }
 ```
@@ -392,7 +445,7 @@ match &*user {
 Runs after render on mount and when its dependency values change. No explicit `cx` is needed in a component:
 
 ```rust
-use_effect!(|| println!("Count is now {count}"), [count]);
+use_effect!(|| println!("Count is now {}", count()), [count()]);
 ```
 
 ### `use_event`
@@ -405,25 +458,33 @@ use_event(&publisher, |event| {
 });
 ```
 
-### `use_async`
+### `provide_context` / `use_context`
 
-Spawns an async task bound to the component entity. The async closure receives a weak entity and `AsyncApp`; use setters' `current()` method when the task needs fresh state:
+Shares a value with every component rendered inside this one, looked up by type. Signals are `Copy`, so providing one shares the state itself; the innermost provider wins:
 
 ```rust
-use_async(async move |_weak_entity, async_cx| {
-    let result = fetch_data().await;
-    async_cx.update(|cx| set_result(result, cx)).ok();
-});
+// parent
+let theme = use_signal(Theme::Dark);
+provide_context(theme);
+
+// any component it renders (either form)
+let theme: Signal<Theme> = use_context();
+let theme = use_context::<Signal<Theme>>();
 ```
 
-### `use_callback`
+`use_context` panics if no parent provided the type; `try_use_context` returns an `Option`. Elements rendered later, outside the parent's render (like popup menu items), see no context, so pass those their values directly.
 
-Creates a callback that updates a target entity if it is still alive. It receives a mutable entity, the event, the current window, and the target entity context:
+### `use_input`
+
+Text inputs in GPUI are state machines that manage their own cursor and focus, so they need a persistent `Entity`. `use_input` creates it once and reuses it across renders. The handle is refcounted; closures that use it get their own copy automatically:
 
 ```rust
-let handler = use_callback(&entity, |state, event, window, cx| {
-    state.handle(event, window, cx);
-});
+let input = use_input();
+
+view! {
+    <input state={&input} class="py-2 px-4" />
+    <button onClick={|_, _, cx| println!("Input: {}", input.read(cx).text())}>"Submit"</button>
+}
 ```
 
 ### `use_window`

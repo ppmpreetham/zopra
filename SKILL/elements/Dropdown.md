@@ -1,42 +1,32 @@
-Here is the comprehensive documentation for the `<DropdownButton>` component, completely tailored to your `gpui-rsx` setup. You can copy and paste this entire block directly into your project's docs or README.
-
----
-
 # DropdownButton
 
-A split-button component that combines a primary action button on the left with a dropdown menu trigger on the right.
+A split button: a primary action on the left and a menu trigger on the right.
 
-In `gpui-rsx`, the component is structurally split:
-
-1. The outer `<DropdownButton>` controls the menu behavior and **shared** styles (size, colors).
-2. The inner `<button>` controls the **action-specific** content (labels, tooltips, click handlers).
+- `<DropdownButton>` (`zopra::ui`) owns the menu and the styles both halves share.
+- The inner `<button>` owns the action: label, tooltip, click handler.
 
 ### Import
 
 ```rust
-use gpui_kit::component::button::{Button, DropdownButton};
 use gpui_kit::component::menu::PopupMenuItem;
+use zopra::ui::DropdownButton;
 ```
 
 ### Basic Usage
 
-Pass your primary action via the `button` attribute, and build your menu via the `dropdown_menu` closure.
+Pass the primary action as `button` and build the menu in `dropdown_menu`.
 
 ```rust
 view! {
     <DropdownButton
         id="deploy-dropdown"
         button={view! {
-            <button
-                id="deploy-btn"
-                label="Deploy"
-                on_click={|_, _, _| println!("Deploying...")}
-            />
+            <button id="deploy-btn" label="Deploy" on_click={|| deploy()} />
         }}
         dropdown_menu={|menu, _window, _cx| {
-            menu.item(PopupMenuItem::new("Staging").on_click(|_,_,cx| { /* ... */ }))
+            menu.item(PopupMenuItem::new("Staging").on_click(|_, _, cx| { /* ... */ }))
                 .separator()
-                .item(PopupMenuItem::new("Production").on_click(|_,_,cx| { /* ... */ }))
+                .item(PopupMenuItem::new("Production").on_click(|_, _, cx| { /* ... */ }))
         }}
     />
 }
@@ -46,23 +36,18 @@ view! {
 
 ## API Reference
 
-### Outer `<DropdownButton>` Properties
+### `<DropdownButton>` Props
 
-These properties define the shell, the menu, and styles applied to _both_ halves of the button simultaneously.
-
-| Attribute                   | Type      | Description                                                                                                              |
-| :-------------------------- | :-------- | :----------------------------------------------------------------------------------------------------------------------- |
-| `id`                        | `&str`    | **Required.** Unique identifier for the component.                                                                       |
-| `button`                    | `Element` | **Required.** The primary action button. Usually passed as `view! { <button ... /> }`.                                   |
-| `dropdown_menu`             | `Closure` | A closure `\|menu, window, cx\|` that builds and returns the dropdown options.                                           |
-| `dropdown_menu_with_anchor` | `Tuple`   | `(Anchor, Closure)`. Positions the popup menu relative to a custom anchor point (e.g., `gpui_kit::Anchor::BottomRight`). |
-
-**Shared Styling Flags:**
-Apply these directly to the `<DropdownButton>` to style both halves:
-
-- **Colors**: `primary`, `ghost`, `danger`, `transparent`
-- **Sizes**: `small`, `large`, `compact`
-- **States**: `disabled`
+| Prop | Type | Description |
+| :--- | :--- | :--- |
+| `button` | `Button` | **Required.** The primary action, usually `view! { <button ... /> }`. |
+| `dropdown_menu` | closure | **Required.** `\|menu, window, cx\|` builds and returns the menu. |
+| `id` | `&str` | Identifies the button; defaults to one per tag. |
+| `variant` | `ButtonVariant` | Colours both halves, e.g. `ButtonVariant::Primary`. |
+| `size` | `Size` | Sizes both halves, e.g. `Size::Small`. |
+| `outline` | flag | Outlined style. |
+| `disabled` | `bool` | Disables both halves. |
+| `class` | classes | Extra styles. |
 
 ### Inner `<button>` Properties
 
