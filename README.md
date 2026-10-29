@@ -15,10 +15,10 @@
   A reactive framework for GPUI
 </p>
 
-## How is this different from others?
+## How is Zopra different from others?
 
 Other frameworks like [gpuix](https://gpuix.dev/) and [gpui-native](https://github.com/countradooku/gpui-native) lets you write code in TS/JS and not RUST!
-Zopra let's you write RUST, not JS. It gives you Reactive hooks and macros!!
+Zopra let's you write RUST, not JS. It gives you Reactive hooks and macros.
 
 ## Install
 
@@ -49,15 +49,15 @@ cargo run
 fn profile(username: &str) {
     let (likes, set_likes) = use_state(0usize);
 
-    use_effect!(|| println!("{username} now has {likes} likes!"), [likes]);
+    use_effect!(|| println!("{username} now has {} likes!", likes()), [likes()]);
 
     view! {
         <div
             class="flex items-center gap-4 p-4 bg-zinc-900 rounded-xl"
-            onClick={|| set_likes(*likes + 1)}
+            onClick={|| set_likes(likes() + 1)}
         >
             <span class="text-white font-bold">{username}</span>
-            <span class="text-zinc-400">{format!("Likes: {likes}")}</span>
+            <span class="text-zinc-400">{format!("Likes: {}", likes())}</span>
         </div>
     }
 }
