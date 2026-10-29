@@ -13,13 +13,13 @@ categories = ["gui"]
 members = ["zopra_macros"]
 
 [dev-dependencies]
-gpui-kit = { version = "0.7", features = ["test-support"] }
+gpui-kit = { version = ">=0.7, <2", features = ["test-support"] }
 
 [dependencies]
 anyhow = "1.0.104"
 futures = "0.3.34"
-gpui-kit = "0.7"
-zopra-gpui-view = "0.1.115"
+gpui-kit = ">=0.7, <2"
+zopra-gpui-view = "0.2"
 parking_lot = "0.12.5"
 rust-embed = "8.12.0"
 zopra_macros = { path = "./zopra_macros", version = "0.1.2" }
@@ -33,3 +33,7 @@ derive_more = "2.1.1"
 
 [features]
 wry = [ "dep:gpui-wry", "dep:lb-wry", "dep:raw-window-handle" ]
+
+# until the new gpui-rsx is published
+# [patch.crates-io]
+# zopra-gpui-view = { path = "../gpui-rsx" }
