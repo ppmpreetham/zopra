@@ -11,7 +11,7 @@ fn match_guard_component() {
     let (count, _set_count) = use_state(|| 0);
 
     let label = match Some("big") {
-        Some(name) if *count > 10 => format!("{name}: many"),
+        Some(name) if count() > 10 => format!("{name}: many"),
         Some(name) => format!("{name}: few"),
         None => String::new(),
     };
@@ -24,12 +24,12 @@ fn shadowed_signal_component() {
     let (count, _set_count) = use_state(|| 0);
 
     let label = {
-        let _outer_read = *count;
+        let _outer_read = count();
         let count = || 42i32;
         format!("inner: {}", count())
     };
 
-    div().child(label).child(count.to_string())
+    div().child(label).child(count().to_string())
 }
 
 mod third_party {
@@ -57,8 +57,8 @@ fn collision_component() {
 #[component]
 fn qualified_hook_component() {
     let (count, set_count) = zopra::hooks::use_state(|| 7);
-    set_count(*count + 1, cx);
-    div().child(count.to_string())
+    set_count(count() + 1, cx);
+    div().child(count().to_string())
 }
 
 #[component]
@@ -71,9 +71,9 @@ fn macro_signal_component() {
     counter!(count, set_count);
     signals!(count);
 
-    let label = format!("Count: {count}");
+    let label = format!("Count: {}", count());
     set_count.set(5, cx);
-    let label = format!("{label} -> {count}");
+    let label = format!("{label} -> {}", count());
 
     div().child(label)
 }
@@ -107,7 +107,7 @@ use zopra_gpui_view::rsx as view;
 #[component]
 fn greet_click(name: String) {
     let (clicked, set_clicked) = use_state(|| 0);
-    let label = clicked.to_string();
+    let label = clicked().to_string();
 
     div()
         .flex()
@@ -117,31 +117,19 @@ fn greet_click(name: String) {
             div()
                 .id("greet-btn")
                 .cursor_pointer()
-                .on_click(move |_, _, cx| set_clicked.set(*clicked + 1, cx))
+                .on_click(move |_, _, cx| set_clicked.set(clicked() + 1, cx))
                 .child(label),
         )
 }
 
+// a missing required prop is a compile error, covered by the `compile_fail` doctest in `lib.rs`
 #[gpui_kit::test]
 async fn props_builder_renders_immediately(cx: &mut TestAppContext) {
     let window = cx.add_empty_window();
     window.update(|window, cx| {
-        let el = GreetProps::new()
-            .name("builder")
-            .count(3)
-            .render(window, cx);
+        // props can be set in any order
+        let el = Greet::new().count(3).name("builder").render(window, cx);
         let _: AnyElement = el.into_any_element();
-    });
-
-    let window2 = cx.add_empty_window();
-    window2.update(|window, cx| {
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            _ = GreetProps::new().count(1).render(window, cx);
-        }));
-        assert!(
-            result.is_err(),
-            "missing prop `name` must panic immediately"
-        );
     });
 }
 

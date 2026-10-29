@@ -1,154 +1,166 @@
-//! Integration tests for window-dependent hooks (`use_state`,
-//! `use_callback`)
+//! Integration tests for window-dependent hooks (`use_state`, `use_event`, signals)
 
-use gpui_kit::{
-    App, AppContext, Context, Entity, IntoElement, Render, TestAppContext, Window, div,
-};
-use zopra::hooks::{use_callback, use_state};
+use gpui_kit::{AppContext, Context, Entity, IntoElement, Render, TestAppContext, Window, div};
+use zopra::hooks::{Signal, use_signal, use_state};
 
-struct SignalView {
-    #[allow(clippy::type_complexity)]
-    get: Option<Box<dyn Fn(&App) -> u32>>,
-    #[allow(clippy::type_complexity)]
-    set: Option<Box<dyn Fn(u32, &mut App)>>,
+/// Renders `use_state` pairs and exposes the signals they return.
+struct StateView {
+    a: Option<Signal<u32>>,
+    b: Option<Signal<u32>>,
 }
 
-impl SignalView {
-    fn new() -> Self {
-        Self {
-            get: None,
-            set: None,
-        }
-    }
-}
-
-impl Render for SignalView {
+impl Render for StateView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (_, setter) = use_state(|| 0u32, window, cx);
-        let getter = setter.clone();
-        self.get = Some(Box::new(move |cx| *getter.current(cx)));
-        self.set = Some(Box::new(move |value, cx| setter.set(value, cx)));
+        let (a, _) = use_state(|| 10u32, window, cx);
+        let (_, b) = use_state(|| 20u32, window, cx);
+        self.a = Some(a);
+        self.b = Some(b);
         div()
     }
 }
 
-struct TwoSignalsView {
-    #[allow(clippy::type_complexity)]
-    a_get: Option<Box<dyn Fn(&App) -> u32>>,
-    #[allow(clippy::type_complexity)]
-    a_set: Option<Box<dyn Fn(u32, &mut App)>>,
-    #[allow(clippy::type_complexity)]
-    b_get: Option<Box<dyn Fn(&App) -> u32>>,
-    #[allow(clippy::type_complexity)]
-    b_set: Option<Box<dyn Fn(u32, &mut App)>>,
-}
-
-impl TwoSignalsView {
-    fn new() -> Self {
-        Self {
-            a_get: None,
-            a_set: None,
-            b_get: None,
-            b_set: None,
-        }
-    }
-}
-
-impl Render for TwoSignalsView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (_, set_a) = use_state(|| 10u32, window, cx);
-        let (_, set_b) = use_state(|| 20u32, window, cx);
-        let get_a = set_a.clone();
-        let get_b = set_b.clone();
-        self.a_get = Some(Box::new(move |cx| *get_a.current(cx)));
-        self.a_set = Some(Box::new(move |value, cx| set_a.set(value, cx)));
-        self.b_get = Some(Box::new(move |cx| *get_b.current(cx)));
-        self.b_set = Some(Box::new(move |value, cx| set_b.set(value, cx)));
-        div()
-    }
-}
-
-struct Holder(u32);
-
-fn get_signal(view: &Entity<SignalView>, cx: &App) -> u32 {
-    (view.read(cx).get.as_ref().unwrap())(cx)
-}
-
-fn set_signal(view: &Entity<SignalView>, value: u32, cx: &mut App) {
-    view.update(cx, |view, cx| (view.set.as_ref().unwrap())(value, cx));
+fn signals(view: &Entity<StateView>, cx: &gpui_kit::App) -> (Signal<u32>, Signal<u32>) {
+    let view = view.read(cx);
+    (view.a.unwrap(), view.b.unwrap())
 }
 
 #[gpui_kit::test]
 async fn use_state_starts_at_the_initial_value(cx: &mut TestAppContext) {
-    let (view, cx) = cx.add_window_view(|_, _| SignalView::new());
-    assert_eq!(cx.cx.read(|cx| get_signal(&view, cx)), 0);
-}
-
-#[gpui_kit::test]
-async fn use_state_setter_updates_the_value(cx: &mut TestAppContext) {
-    let (view, cx) = cx.add_window_view(|_, _| SignalView::new());
-    cx.cx.update(|cx| set_signal(&view, 5, cx));
-    assert_eq!(cx.cx.read(|cx| get_signal(&view, cx)), 5);
-    cx.cx.update(|cx| set_signal(&view, 9, cx));
-    assert_eq!(cx.cx.read(|cx| get_signal(&view, cx)), 9);
+    let (view, cx) = cx.add_window_view(|_, _| StateView { a: None, b: None });
+    let (a, b) = cx.cx.read(|cx| signals(&view, cx));
+    assert_eq!(cx.cx.read(|cx| (a.get(cx), b.get(cx))), (10, 20));
 }
 
 #[gpui_kit::test]
 async fn use_state_persists_across_re_renders(cx: &mut TestAppContext) {
-    let (view, cx) = cx.add_window_view(|_, _| SignalView::new());
-    cx.cx.update(|cx| set_signal(&view, 5, cx));
-    assert_eq!(cx.cx.read(|cx| get_signal(&view, cx)), 5);
+    let (view, cx) = cx.add_window_view(|_, _| StateView { a: None, b: None });
+    let (a, _) = cx.cx.read(|cx| signals(&view, cx));
+    cx.cx.update(|cx| a.set(5u32, cx));
+    cx.run_until_parked();
 
     cx.cx.update(|cx| view.update(cx, |_, cx| cx.notify()));
     cx.run_until_parked();
-    assert_eq!(cx.cx.read(|cx| get_signal(&view, cx)), 5);
+    let (again, _) = cx.cx.read(|cx| signals(&view, cx));
+    assert_eq!(cx.cx.read(|cx| again.get(cx)), 5);
 }
 
 #[gpui_kit::test]
-async fn two_use_state_signals_are_independent(cx: &mut TestAppContext) {
-    let (view, cx) = cx.add_window_view(|_, _| TwoSignalsView::new());
-    let read_b = |cx: &App| (view.read(cx).b_get.as_ref().unwrap())(cx);
+async fn use_state_signals_are_independent(cx: &mut TestAppContext) {
+    let (view, cx) = cx.add_window_view(|_, _| StateView { a: None, b: None });
+    let (a, b) = cx.cx.read(|cx| signals(&view, cx));
+    cx.cx.update(|cx| a.set(1u32, cx));
+    assert_eq!(cx.cx.read(|cx| (a.get(cx), b.get(cx))), (1, 20));
+    cx.cx.update(|cx| b.update(|b| *b += 1, cx));
+    assert_eq!(cx.cx.read(|cx| (a.get(cx), b.get(cx))), (1, 21));
+}
 
-    cx.cx
-        .update(|cx| view.update(cx, |view, cx| (view.a_set.as_ref().unwrap())(1, cx)));
-    assert_eq!(cx.cx.read(read_b), 20);
+// #region use_event
+struct Emitter;
 
-    cx.cx
-        .update(|cx| view.update(cx, |view, cx| (view.b_set.as_ref().unwrap())(2, cx)));
-    assert_eq!(cx.cx.read(read_b), 2);
-    let read_a = |cx: &App| (view.read(cx).a_get.as_ref().unwrap())(cx);
-    assert_eq!(cx.cx.read(read_a), 1);
+impl gpui_kit::EventEmitter<u32> for Emitter {}
+
+struct EventView {
+    publisher: Entity<Emitter>,
+    generation: u32,
+    seen: std::rc::Rc<std::cell::RefCell<Vec<(u32, u32)>>>,
+}
+
+impl Render for EventView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let seen = std::rc::Rc::clone(&self.seen);
+        let generation = self.generation;
+        zopra::hooks::use_event(
+            &self.publisher,
+            move |event: &u32, _cx| seen.borrow_mut().push((generation, *event)),
+            window,
+            cx,
+        );
+        div()
+    }
 }
 
 #[gpui_kit::test]
-async fn use_callback_updates_the_bound_entity(cx: &mut TestAppContext) {
-    let holder: Entity<Holder> = cx.new(|_| Holder(0));
-    let bump = use_callback(
-        &holder,
-        |holder: &mut Holder, amount: &u32, _window, _cx| {
-            holder.0 += *amount;
-        },
-    );
-
-    let visual = cx.add_empty_window();
-    visual.update(|window, cx| bump(&3, window, cx));
-    assert_eq!(visual.cx.read(|cx| holder.read(cx).0), 3);
-    visual.update(|window, cx| bump(&4, window, cx));
-    assert_eq!(visual.cx.read(|cx| holder.read(cx).0), 7);
-}
-
-#[gpui_kit::test]
-async fn use_callback_is_a_noop_after_the_entity_is_released(cx: &mut TestAppContext) {
-    let holder: Entity<Holder> = cx.new(|_| Holder(0));
-    let bump = use_callback(
-        &holder,
-        |holder: &mut Holder, _amount: &u32, _window, _cx| {
-            holder.0 += 1;
-        },
-    );
-    drop(holder);
+async fn use_event_subscribes_once_and_uses_the_latest_handler(cx: &mut TestAppContext) {
+    let publisher = cx.new(|_| Emitter);
+    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let (view, cx) = cx.add_window_view({
+        let publisher = publisher.clone();
+        let seen = std::rc::Rc::clone(&seen);
+        move |_, _| EventView {
+            publisher,
+            generation: 0,
+            seen,
+        }
+    });
     cx.run_until_parked();
 
-    let visual = cx.add_empty_window();
-    visual.update(|window, cx| bump(&1, window, cx));
+    for generation in 1..=3 {
+        cx.cx.update(|cx| {
+            view.update(cx, |view, cx| {
+                view.generation = generation;
+                cx.notify();
+            })
+        });
+        cx.run_until_parked();
+    }
+
+    cx.cx.update(|cx| publisher.update(cx, |_, cx| cx.emit(7u32)));
+    assert_eq!(*seen.borrow(), vec![(3, 7)]);
 }
+// #endregion
+
+// #region signals
+#[gpui_kit::test]
+async fn disposed_signals_ignore_writes(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let signal = Signal::new(1u32, None, cx);
+        signal.set(2u32, cx);
+        assert_eq!(signal.get(cx), 2);
+
+        signal.dispose(cx);
+        assert!(signal.try_read(cx).is_none());
+        assert!(signal.try_update(|value| *value = 3, cx).is_none());
+
+        // the slot is reused, but the old handle stays dead
+        let reused = Signal::new(5u32, None, cx);
+        assert!(signal.try_read(cx).is_none());
+        assert_eq!(reused.get(cx), 5);
+    });
+}
+
+struct MountView {
+    mounted: bool,
+    signal: Option<Signal<u32>>,
+}
+
+impl Render for MountView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.mounted {
+            self.signal = Some(use_signal(|| 7, window, cx));
+        }
+        div()
+    }
+}
+
+#[gpui_kit::test]
+async fn signals_are_disposed_when_their_component_unmounts(cx: &mut TestAppContext) {
+    let (view, cx) = cx.add_window_view(|_, _| MountView {
+        mounted: true,
+        signal: None,
+    });
+    cx.run_until_parked();
+    let signal = cx.cx.read(|cx| view.read(cx).signal).unwrap();
+    assert_eq!(cx.cx.read(|cx| signal.get(cx)), 7);
+
+    cx.cx.update(|cx| {
+        view.update(cx, |view, cx| {
+            view.mounted = false;
+            cx.notify();
+        })
+    });
+    cx.run_until_parked();
+    // GPUI releases entities dropped by a frame on its next effect flush
+    cx.cx.update(|_| {});
+    assert!(cx.cx.read(|cx| signal.try_read(cx).is_none()));
+}
+// #endregion
