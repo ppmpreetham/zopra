@@ -1,6 +1,6 @@
-use std::rc::Rc;
-use gpui_kit::{App, Entity, Window};
-use super::Snap;
+use gpui_kit::{App, AsyncApp, Window};
+
+use super::{Signal, use_signal};
 
 /// The current state of an async resource
 pub enum ResourceState<T, E> {
@@ -12,9 +12,9 @@ pub enum ResourceState<T, E> {
     Failed(E),
 }
 
-struct ResourceSlot<T, E> {
+struct Request<D> {
+    deps: Option<D>,
     generation: u64,
-    state: Rc<ResourceState<T, E>>,
 }
 
 /// Loads an async resource on mount and again whenever `deps` changes
@@ -23,11 +23,11 @@ struct ResourceSlot<T, E> {
 /// # Example
 ///
 /// ```ignore
-/// let user = use_resource([user_id], || async move {
+/// let user = use_resource(user_id, || async move {
 ///     fetch_user(user_id).await
 /// });
 ///
-/// match &*user {
+/// match user.read() {
 ///     ResourceState::Loading => { /* render a loading state */ }
 ///     ResourceState::Ready(user) => { /* render the user */ }
 ///     ResourceState::Failed(error) => { /* render the error */ }
@@ -39,42 +39,46 @@ pub fn use_resource<D, T, E, F>(
     f: F,
     window: &mut Window,
     cx: &mut App,
-) -> Snap<ResourceState<T, E>>
+) -> Signal<ResourceState<T, E>>
 where
-    D: Clone + PartialEq + 'static,
+    D: PartialEq + 'static,
     T: 'static,
     E: 'static,
     F: AsyncFnOnce() -> Result<T, E> + 'static,
 {
-    let previous: Entity<Option<D>> = window.use_state(cx, |_window, _cx| None);
-    let state: Entity<ResourceSlot<T, E>> = window.use_state(cx, |_window, _cx| ResourceSlot {
+    let state = use_signal(|| ResourceState::Loading, window, cx);
+    let request = window.use_state(cx, |_window, _cx| Request {
+        deps: None,
         generation: 0,
-        state: Rc::new(ResourceState::Loading),
     });
 
-    let changed = previous.read(cx).as_ref() != Some(&deps);
-    if changed {
-        previous.update(cx, |old, _cx| *old = Some(deps));
-        let generation = state.update(cx, |slot, _cx| {
-            slot.generation = slot.generation.wrapping_add(1);
-            slot.state = Rc::new(ResourceState::Loading);
-            slot.generation
+    if request.read(cx).deps.as_ref() != Some(&deps) {
+        let generation = request.update(cx, |request, _cx| {
+            request.deps = Some(deps);
+            request.generation += 1;
+            request.generation
         });
-        let writer = state.downgrade();
-        cx.spawn(async move |cx: &mut gpui_kit::AsyncApp| {
+        // this render already shows the change, so don't schedule another
+        state.update_untracked(|state| *state = ResourceState::Loading, cx);
+
+        let request = request.downgrade();
+        cx.spawn(async move |cx: &mut AsyncApp| {
             let result = f().await;
-            _ = writer.update(cx, |slot, cx| {
-                if slot.generation == generation {
-                    slot.state = Rc::new(match result {
+            cx.update(|cx| {
+                let current = request
+                    .upgrade()
+                    .is_some_and(|request| request.read(cx).generation == generation);
+                if current {
+                    let result = match result {
                         Ok(value) => ResourceState::Ready(value),
                         Err(err) => ResourceState::Failed(err),
-                    });
-                    cx.notify();
+                    };
+                    state.update(|state| *state = result, cx);
                 }
             });
         })
         .detach();
     }
 
-    Snap(state.read(cx).state.clone())
+    state
 }

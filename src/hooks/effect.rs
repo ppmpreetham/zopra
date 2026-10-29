@@ -29,7 +29,6 @@ where
 ///
 /// Use an empty dependency list (`[]`) for an effect that runs only after
 /// the initial render.
-
 #[macro_export]
 macro_rules! use_effect {
     ($effect:expr, [$($dep:expr),* $(,)?], $cx:expr, $window:expr, __zopra_component $(,)?) => {{
@@ -54,50 +53,4 @@ macro_rules! use_effect {
             "invalid use_effect! syntax: write `use_effect!(effect, [deps])` inside a #[component]."
         );
     };
-}
-
-/// Evaluates an expression inline each time the component renders.
-///
-/// Despite its name, this macro does not run only when the component mounts.
-/// It also does not schedule the expression to run after rendering.
-///
-/// # Example
-///
-/// ```ignore
-/// use\_mount!({
-///     println!("rendering");
-/// });
-/// ```
-///
-/// For logic that should run after the initial render, use `use_effect!` with
-/// an empty dependency list (`[]`).
-
-#[macro_export]
-macro_rules! use_mount {
-    ($effect:expr $(,)?) => {{
-        $effect();
-    }};
-}
-
-/// Evaluates an expression inline each time the component renders, passing
-/// the component's `cx`.
-///
-/// Despite its name, this macro does not run only when the component mounts.
-/// It also does not schedule the expression to run after rendering.
-///
-/// # Example
-///
-/// ```ignore
-/// use\_mount\_cx!(|cx| {
-///     // Use cx here
-/// });
-/// ```
-///
-/// For logic that should run after the initial render, use `use_effect!` with
-/// an empty dependency list (`[]`).
-#[macro_export]
-macro_rules! use_mount_cx {
-    ($effect:expr $(,)?) => {{
-        $effect(cx);
-    }};
 }
