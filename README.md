@@ -74,6 +74,12 @@ fn app() {
 
 ```
 
+## Better Experience
+
+- [Zopra Panels](https://github.com/ppmpreetham/zopra-panels): Infinite fractal tiling, ported from trellisui and niri
+- [Zopra Components](https://github.com/ppmpreetham/zopra-components): Experimental Component Library for Zopra
+- [Zopra Charts](https://github.com/ppmpreetham/zopra-charts): Exhaustive Chart Library (80+) for Zopra
+
 ## License
 
 The source is [MIT licensed](LICENSE) and can be built and run for free, for both personal and commercial use.
