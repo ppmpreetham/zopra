@@ -1,9 +1,4 @@
 #[cfg(feature = "wry")]
-use std::cell::RefCell;
-#[cfg(feature = "wry")]
-use std::rc::Rc;
-
-#[cfg(feature = "wry")]
 use gpui_kit::prelude::*;
 #[cfg(feature = "wry")]
 use gpui_kit::*;
@@ -11,63 +6,47 @@ use gpui_kit::*;
 use zopra_macros::component;
 
 #[cfg(feature = "wry")]
-#[derive(Clone, Default)]
-pub struct WebViewController {
-    webview: Rc<RefCell<Option<gpui_kit::WeakEntity<gpui_wry::WebView>>>>,
-}
+use crate::hooks::Signal;
+
+/// A `Copy` handle that drives a [`WebView`] from outside it (back, forward, load...).
+#[cfg(feature = "wry")]
+#[derive(Clone, Copy, Debug)]
+pub struct WebViewController(Signal<Option<WeakEntity<gpui_wry::WebView>>>);
 
 #[cfg(feature = "wry")]
 impl WebViewController {
-    pub fn set(&self, webview: &Entity<gpui_wry::WebView>) {
-        *self.webview.borrow_mut() = Some(webview.downgrade());
+    pub fn set(self, webview: &Entity<gpui_wry::WebView>, cx: &mut App) {
+        let webview = webview.downgrade();
+        self.0.update_untracked(|current| *current = Some(webview), cx);
     }
 
-    fn with_webview<R>(
-        &self,
-        f: impl FnOnce(&Entity<gpui_wry::WebView>, &mut App) -> R,
-        cx: &mut App,
-    ) -> Option<R> {
-        let weak = self.webview.borrow().as_ref()?.clone();
-        let entity = weak.upgrade()?;
-        Some(f(&entity, cx))
+    fn with_webview(self, f: impl FnOnce(&mut gpui_wry::WebView), cx: &mut App) {
+        if let Some(webview) = self.0.read(cx).as_ref().and_then(WeakEntity::upgrade) {
+            webview.update(cx, |webview, _| f(webview));
+        }
     }
 
-    pub fn load_url(&self, url: &str, cx: &mut App) {
-        self.with_webview(|wv, cx| wv.update(cx, |view, _| view.load_url(url)), cx);
+    pub fn load_url(self, url: &str, cx: &mut App) {
+        self.with_webview(|view| view.load_url(url), cx);
     }
 
-    pub fn back(&self, cx: &mut App) {
-        self.with_webview(|wv, cx| wv.update(cx, |view, _| _ = view.back()), cx);
+    pub fn back(self, cx: &mut App) {
+        self.with_webview(|view| _ = view.back(), cx);
     }
 
-    pub fn forward(&self, cx: &mut App) {
-        self.with_webview(
-            |wv, cx| {
-                wv.update(cx, |view, _| {
-                    _ = view.raw().evaluate_script("history.forward();")
-                })
-            },
-            cx,
-        );
+    pub fn forward(self, cx: &mut App) {
+        self.with_webview(|view| _ = view.raw().evaluate_script("history.forward();"), cx);
     }
 
-    pub fn reload(&self, cx: &mut App) {
-        self.with_webview(
-            |wv, cx| {
-                wv.update(cx, |view, _| {
-                    _ = view.raw().evaluate_script("location.reload();")
-                })
-            },
-            cx,
-        );
+    pub fn reload(self, cx: &mut App) {
+        self.with_webview(|view| _ = view.raw().evaluate_script("location.reload();"), cx);
     }
 }
 
 #[cfg(feature = "wry")]
+#[track_caller]
 pub fn use_webview(window: &mut Window, cx: &mut App) -> WebViewController {
-    crate::hooks::use_model(WebViewController::default, window, cx)
-        .read(cx)
-        .clone()
+    WebViewController(crate::hooks::use_signal(|| None, window, cx))
 }
 
 #[cfg(feature = "wry")]
@@ -116,9 +95,9 @@ pub fn WebView(
 ) {
     use crate::hooks::use_state;
 
-    let (wv, set_wv) = use_state(|| None::<Entity<gpui_wry::WebView>>, window, cx);
+    let (wv, set_wv) = use_state(None::<Entity<gpui_wry::WebView>>);
 
-    if wv.is_none() {
+    if wv.read().is_none() {
         let mut builder = lb_wry::WebViewBuilder::new().with_url(&url);
         if let Some(p) = proxy {
             builder = builder.with_proxy_config(p);
@@ -136,16 +115,16 @@ pub fn WebView(
 
         let wv = cx.new(|inner_cx| gpui_wry::WebView::new(webview, window, inner_cx));
 
-        if let Some(ctrl) = &controller {
-            ctrl.set(&wv);
+        if let Some(ctrl) = controller {
+            ctrl.set(&wv, cx);
         }
-        set_wv.set(Some(wv), cx);
+        set_wv(Some(wv));
     }
 
     crate::view! {
         <div class="size-full">
             {
-                if let Some(wv) = wv.as_ref() {
+                if let Some(wv) = wv.read() {
                     wv.clone().into_any_element()
                 } else {
                     div().into_any_element()

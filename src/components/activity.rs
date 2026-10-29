@@ -1,44 +1,17 @@
 use gpui_kit::prelude::*;
-use gpui_kit::{AnyElement, App, Window, div};
+use gpui_kit::div;
 
-/// Conditionally render a component without losing the state
-///
-/// Synonymous with `<Activity />` from React.
-#[derive(Default)]
-pub struct ActivityProps {
-    when: bool,
-    mode: &'static str,
-    children: Vec<AnyElement>,
-}
+use crate::{Children, component};
 
-impl ActivityProps {
-    #[must_use]
-    pub fn when(mut self, when: bool) -> Self {
-        self.when = when;
-        self
-    }
-
-    #[must_use]
-    pub fn mode(mut self, mode: &'static str) -> Self {
-        self.mode = mode;
-        self
-    }
-
-    #[must_use]
-    pub fn children(mut self, children: impl IntoIterator<Item = AnyElement>) -> Self {
-        self.children = children.into_iter().collect();
-        self
-    }
-
-    #[track_caller]
-    #[must_use]
-    pub fn render(self, _window: &mut Window, _cx: &mut App) -> AnyElement {
-        if self.when {
-            div().children(self.children).into_any_element()
-        } else if self.mode == "hidden" {
-            div().invisible().children(self.children).into_any_element()
-        } else {
-            div().into_any_element()
-        }
+/// Shows its children while `when` is true. With `mode="hidden"`, hidden children stay
+/// rendered but invisible, so their state survives (like React's `<Activity>`).
+#[component]
+pub fn activity(when: bool, mode: Option<&'static str>, children: Children) {
+    if when {
+        div().children(children())
+    } else if mode == Some("hidden") {
+        div().invisible().children(children())
+    } else {
+        div()
     }
 }

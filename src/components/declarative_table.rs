@@ -1,48 +1,58 @@
 use std::cmp::Ordering;
 use std::ops::Range;
-use std::rc::Rc;
 
 use gpui_kit::component::menu::PopupMenu;
 use gpui_kit::component::table::{Column, ColumnGroup, ColumnSort, TableDelegate, TableState};
 use gpui_kit::prelude::*;
 use gpui_kit::{AnyElement, App, Context, Div, IntoElement, Stateful, Window, div};
 
-type CellFn<T> = dyn Fn(
-    &T,
-    &str,
-    &mut Window,
-    &mut Context<TableState<DeclarativeTableDelegate<T>>>,
-) -> AnyElement;
+use crate::hooks::Signal;
 
-type LoadCallback = Rc<dyn Fn(&mut App)>;
+type CellFn<T> = dyn Fn(&T, &str) -> AnyElement;
 
-pub trait IntoRows<T> {
-    fn into_rows(self) -> Rc<Vec<T>>;
+type LoadCallback = Box<dyn Fn(&mut App)>;
+
+/// Table rows: owned, or read straight from a signal without copying.
+pub enum Rows<T: 'static> {
+    Owned(Vec<T>),
+    Signal(Signal<Vec<T>>),
 }
 
-impl<T> IntoRows<T> for Vec<T> {
-    fn into_rows(self) -> Rc<Vec<T>> {
-        Rc::new(self)
+impl<T> From<Vec<T>> for Rows<T> {
+    fn from(rows: Vec<T>) -> Self {
+        Self::Owned(rows)
     }
 }
-impl<T> IntoRows<T> for Rc<Vec<T>> {
-    fn into_rows(self) -> Rc<Vec<T>> {
-        self
+
+impl<T> From<Signal<Vec<T>>> for Rows<T> {
+    fn from(rows: Signal<Vec<T>>) -> Self {
+        Self::Signal(rows)
     }
 }
-impl<T> IntoRows<T> for crate::hooks::Snap<Vec<T>> {
-    fn into_rows(self) -> Rc<Vec<T>> {
-        self.into_rc()
+
+impl<T: 'static> Rows<T> {
+    fn slice<'a>(&'a self, cx: &'a App) -> &'a [T] {
+        match self {
+            Self::Owned(rows) => rows,
+            Self::Signal(rows) => rows.try_read(cx).map_or(&[], Vec::as_slice),
+        }
+    }
+
+    /// An empty slice of the row type, so generated code can infer `T`.
+    #[must_use]
+    pub fn probe(&self) -> &'static [T] {
+        &[]
     }
 }
+
 pub type SortFn<T> = dyn Fn(&[T]) -> Vec<usize>;
 
-pub fn col_sorter<T: 'static, F, V>(f: F, _rows: &[T]) -> Rc<SortFn<T>>
+pub fn col_sorter<T: 'static, F, V>(f: F, _rows: &[T]) -> Box<SortFn<T>>
 where
     F: Fn(&T) -> V + 'static,
     V: PartialOrd + 'static,
 {
-    Rc::new(move |rows| {
+    Box::new(move |rows| {
         let mut keyed = rows
             .iter()
             .enumerate()
@@ -53,11 +63,11 @@ where
     })
 }
 
-pub fn any_order<T: 'static>() -> Rc<SortFn<T>> {
-    Rc::new(|rows| (0..rows.len()).collect())
+pub fn any_order<T: 'static>() -> Box<SortFn<T>> {
+    Box::new(|rows| (0..rows.len()).collect())
 }
 
-pub fn col_cell<T: 'static, F, V: IntoElement>(f: F, probe: &T) -> AnyElement
+pub fn cell_of<T: 'static, F, V: IntoElement>(f: F, probe: &T) -> AnyElement
 where
     F: Fn(&T) -> V,
 {
@@ -67,49 +77,52 @@ where
 
 pub struct DeclarativeTableDelegate<T>
 where
-    T: 'static,
+    T: Clone + 'static,
 {
-    pub data: Rc<Vec<T>>,
+    data: Rows<T>,
+    /// version of a signal's rows when they were last sorted
+    sorted_version: Option<u32>,
     order: Option<Vec<usize>>,
     active_sort: Option<(usize, ColumnSort)>,
-    pub columns: Vec<Column>,
-    pub group_headers: Option<Vec<Vec<ColumnGroup>>>,
+    columns: Vec<Column>,
+    group_headers: Option<Vec<Vec<ColumnGroup>>>,
 
     #[allow(clippy::type_complexity)]
-    pub render_row: Option<
+    render_row: Option<
         Box<dyn Fn(usize, &T, &mut Window, &mut Context<TableState<Self>>) -> Stateful<Div>>,
     >,
     #[allow(clippy::type_complexity)]
-    pub render_cell: Box<CellFn<T>>,
+    render_cell: Box<CellFn<T>>,
     #[allow(clippy::type_complexity)]
-    pub on_sort: Option<Rc<dyn Fn(&Column, ColumnSort, &mut App)>>,
+    on_sort: Option<Box<dyn Fn(&Column, ColumnSort, &mut App)>>,
     #[allow(clippy::type_complexity)]
-    pub on_context_menu: Option<
+    on_context_menu: Option<
         Box<dyn Fn(&T, usize, PopupMenu, &mut Window, &mut Context<TableState<Self>>) -> PopupMenu>,
     >,
-    pub on_lazy_load: Option<LoadCallback>,
-    pub explicit_row_count: Option<usize>,
-    pub data_offset: usize,
+    on_lazy_load: Option<LoadCallback>,
+    explicit_row_count: Option<usize>,
+    data_offset: usize,
     #[allow(clippy::type_complexity)]
-    pub on_visible_rows_changed: Option<Rc<dyn Fn(Range<usize>, &mut App)>>,
-    sorters: Vec<Option<Rc<SortFn<T>>>>,
+    on_visible_rows_changed: Option<Box<dyn Fn(Range<usize>, &mut App)>>,
+    sorters: Vec<Option<Box<SortFn<T>>>>,
 
-    loading: bool,
+    lazy_loading: bool,
     eof: bool,
     full_loading: bool,
     visible_rows: Range<usize>,
     visible_cols: Range<usize>,
 }
 
-impl<T: 'static> DeclarativeTableDelegate<T> {
+impl<T: Clone + 'static> DeclarativeTableDelegate<T> {
     #[must_use]
-    pub fn new<C>(data: Rc<Vec<T>>, columns: Vec<Column>, render_cell: C) -> Self
+    pub fn new<C>(data: Rows<T>, columns: Vec<Column>, render_cell: C) -> Self
     where
-        C: Fn(&T, &str, &mut Window, &mut Context<TableState<Self>>) -> AnyElement + 'static,
+        C: Fn(&T, &str) -> AnyElement + 'static,
     {
-        let sorters = vec![None; columns.len()];
+        let sorters = columns.iter().map(|_| None).collect();
         Self {
             data,
+            sorted_version: None,
             order: None,
             active_sort: None,
             columns,
@@ -123,7 +136,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             data_offset: 0,
             on_visible_rows_changed: None,
             sorters,
-            loading: false,
+            lazy_loading: false,
             eof: false,
             full_loading: false,
             visible_rows: 0..0,
@@ -131,18 +144,35 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
         }
     }
 
-    pub fn update_data(&mut self, data: &Rc<Vec<T>>) -> bool {
-        if Rc::ptr_eq(&self.data, data) {
+    /// Takes this render's rows; returns whether the table needs to re-render.
+    /// Owned rows always count as new. Rows from the same signal only do once it was written.
+    pub fn update_data(&mut self, data: Rows<T>, cx: &App) -> bool {
+        let version = match &data {
+            Rows::Signal(rows) => rows.version(cx),
+            Rows::Owned(_) => None,
+        };
+        // a table built from a signal hasn't seen its version yet, but already shows its rows
+        let unchanged = match (&self.data, &data) {
+            (Rows::Signal(old), Rows::Signal(new)) => {
+                old.same(*new) && self.sorted_version.is_none_or(|seen| Some(seen) == version)
+            }
+            _ => false,
+        };
+        self.data = data;
+        self.sorted_version = version;
+        if unchanged {
             return false;
         }
-        self.data = data.clone();
         if let Some((column, sort)) = self.active_sort {
-            self.set_order(column, sort);
+            self.set_order(column, sort, cx);
         }
         true
     }
 
-    fn set_order(&mut self, column: usize, sort: ColumnSort) {
+    fn set_order(&mut self, column: usize, sort: ColumnSort, cx: &App) {
+        if let Rows::Signal(rows) = &self.data {
+            self.sorted_version = rows.version(cx);
+        }
         if sort == ColumnSort::Default {
             self.order = None;
             self.active_sort = None;
@@ -153,7 +183,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             self.active_sort = None;
             return;
         };
-        let mut order = sorter(self.data.as_slice());
+        let mut order = sorter(self.data.slice(cx));
         if sort == ColumnSort::Descending {
             order.reverse();
         }
@@ -169,9 +199,16 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
             .unwrap_or(row)
     }
 
-    fn get_data(&self, row_ix: usize) -> Option<&T> {
+    pub fn resolved_index(&self, row_ix: usize) -> usize {
+        row_ix
+            .checked_sub(self.data_offset)
+            .map(|row| self.data_index(row) + self.data_offset)
+            .unwrap_or(row_ix)
+    }
+
+    fn get_data<'a>(&'a self, row_ix: usize, cx: &'a App) -> Option<&'a T> {
         let row = row_ix.checked_sub(self.data_offset)?;
-        self.data.get(self.data_index(row))
+        self.data.slice(cx).get(self.data_index(row))
     }
 
     #[must_use]
@@ -186,7 +223,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
 
     #[must_use]
     pub fn on_sort(mut self, handler: impl Fn(&Column, ColumnSort, &mut App) + 'static) -> Self {
-        self.on_sort = Some(Rc::new(handler));
+        self.on_sort = Some(Box::new(handler));
         self
     }
 
@@ -214,7 +251,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
 
     #[must_use]
     pub fn on_visible_rows_changed(mut self, handler: impl Fn(Range<usize>, &mut App) + 'static) -> Self {
-        self.on_visible_rows_changed = Some(Rc::new(handler));
+        self.on_visible_rows_changed = Some(Box::new(handler));
         self
     }
 
@@ -227,17 +264,17 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 
     pub fn set_on_visible_rows_changed(&mut self, handler: impl Fn(Range<usize>, &mut App) + 'static) {
-        self.on_visible_rows_changed = Some(Rc::new(handler));
+        self.on_visible_rows_changed = Some(Box::new(handler));
     }
 
     #[must_use]
     pub fn on_lazy_load(mut self, handler: impl Fn(&mut App) + 'static) -> Self {
-        self.on_lazy_load = Some(Rc::new(handler));
+        self.on_lazy_load = Some(Box::new(handler));
         self
     }
 
     #[must_use]
-    pub fn sorters(mut self, sorters: Vec<Option<Rc<SortFn<T>>>>) -> Self {
+    pub fn sorters(mut self, sorters: Vec<Option<Box<SortFn<T>>>>) -> Self {
         debug_assert_eq!(sorters.len(), self.columns.len());
         self.sorters = sorters;
         self
@@ -250,7 +287,7 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 
     pub fn set_loading(&mut self, loading: bool) {
-        self.loading = loading;
+        self.lazy_loading = loading;
     }
 
     pub fn set_full_loading(&mut self, full_loading: bool) {
@@ -262,8 +299,8 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 
     #[must_use]
-    pub fn loading(&self) -> bool {
-        self.loading
+    pub fn is_loading(&self) -> bool {
+        self.lazy_loading
     }
 
     #[must_use]
@@ -282,25 +319,19 @@ impl<T: 'static> DeclarativeTableDelegate<T> {
     }
 }
 
-impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
+/// Context menus and custom rows need `cx` mutably, so they get a clone of their one row.
+impl<T: Clone + 'static> TableDelegate for DeclarativeTableDelegate<T> {
     fn columns_count(&self, _cx: &App) -> usize {
         self.columns.len()
     }
 
-    fn rows_count(&self, _cx: &App) -> usize {
-      self.explicit_row_count.unwrap_or(self.data.len())
+    fn rows_count(&self, cx: &App) -> usize {
+        self.explicit_row_count
+            .unwrap_or_else(|| self.data.slice(cx).len())
     }
 
     fn column(&self, col_ix: usize, _cx: &App) -> Column {
-        debug_assert!(
-            col_ix < self.columns.len(),
-            "column index {col_ix} out of bounds ({} columns)",
-            self.columns.len()
-        );
-        self.columns
-            .get(col_ix)
-            .cloned()
-            .unwrap_or_else(|| Column::new("unknown", "Unknown"))
+        self.columns[col_ix].clone()
     }
 
     fn group_headers(&self, _cx: &App) -> Option<Vec<Vec<ColumnGroup>>> {
@@ -342,13 +373,12 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         &mut self,
         row_ix: usize,
         menu: PopupMenu,
-        _window: &mut Window,
-        _cx: &mut Context<TableState<Self>>,
+        window: &mut Window,
+        cx: &mut Context<TableState<Self>>,
     ) -> PopupMenu {
-        if let (Some(handler), Some(item)) = (&self.on_context_menu, self.get_data(row_ix)) {
-            handler(item, row_ix, menu, _window, _cx)
-        } else {
-            menu
+        match (&self.on_context_menu, self.get_data(row_ix, cx).cloned()) {
+            (Some(handler), Some(item)) => handler(&item, self.resolved_index(row_ix), menu, window, cx),
+            _ => menu,
         }
     }
 
@@ -358,16 +388,11 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> Stateful<Div> {
-        let data_ix = row_ix
-            .checked_sub(self.data_offset)
-            .map(|row| self.data_index(row))
-            .unwrap_or(row_ix);
         if let Some(handler) = &self.render_row
-            && let Some(item) = self.get_data(row_ix)
+            && let Some(item) = self.get_data(row_ix, cx).cloned()
         {
-            return handler(data_ix, item, window, cx);
+            return handler(self.resolved_index(row_ix), &item, window, cx);
         }
-
         div().id(("row", row_ix))
     }
 
@@ -375,17 +400,12 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
         &mut self,
         row_ix: usize,
         col_ix: usize,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<TableState<Self>>,
     ) -> impl IntoElement {
-        let Some(col) = self.columns.get(col_ix) else {
-            return div().into_any_element();
-        };
-
-        if let Some(item) = self.get_data(row_ix) {
-            (self.render_cell)(item, col.key.as_ref(), window, cx)
-        } else {
-            div().into_any_element()
+        match (self.columns.get(col_ix), self.get_data(row_ix, cx)) {
+            (Some(col), Some(item)) => (self.render_cell)(item, col.key.as_ref()),
+            _ => div().into_any_element(),
         }
     }
 
@@ -402,12 +422,12 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
             }
             return;
         }
-        self.set_order(col_ix, sort);
+        self.set_order(col_ix, sort, cx);
         cx.notify();
     }
 
     fn has_more(&self, _cx: &App) -> bool {
-        self.on_lazy_load.is_some() && !self.loading && !self.eof
+        self.on_lazy_load.is_some() && !self.lazy_loading && !self.eof
     }
 
     fn loading(&self, _cx: &App) -> bool {
@@ -415,10 +435,10 @@ impl<T: 'static> TableDelegate for DeclarativeTableDelegate<T> {
     }
 
     fn load_more(&mut self, _window: &mut Window, cx: &mut Context<TableState<Self>>) {
-      if self.loading {
+      if self.lazy_loading {
               return;
           }
-      self.loading = true;
+      self.lazy_loading = true;
       if let Some(handler) = &self.on_lazy_load {
           handler(cx);
       }
